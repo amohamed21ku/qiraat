@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -23,7 +24,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     'Manager',
     'Employee',
     'Supervisor',
-    'Intern'
+    'Intern',
   ];
 
   bool showSpinner = false;
@@ -102,19 +103,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 });
 
                 try {
-                  await _auth.createUserWithEmailAndPassword(
-                    email: emailController.text.trim(),
-                    password: passwordController.text.trim(),
-                  );
+                  await Future.microtask(() async {
+                    // Create user with email and password
+                    UserCredential userCredential =
+                        await _auth.createUserWithEmailAndPassword(
+                      email: emailController.text.trim(),
+                      password: passwordController.text.trim(),
+                    );
 
-                  User? user = _auth.currentUser;
-                  await user?.updateProfile(
-                      displayName: fullNameController.text);
+                    // Update display name for the user
+                    User? user = userCredential.user;
+                    await user?.updateProfile(
+                        displayName: fullNameController.text);
 
-                  // You can also save the position and username in Firestore for more custom data.
-                  // Example: Firestore.instance.collection('users').doc(user?.uid).set({ 'position': selectedPosition });
+                    // Save additional user data to Firestore
+                    FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user?.uid)
+                        .set({
+                      'email': emailController.text.trim(),
+                      'username': usernameController.text.trim(),
+                      'fullName': fullNameController.text.trim(),
+                      'position': selectedPosition,
+                      'uid': user?.uid,
+                    });
 
-                  Navigator.pushReplacementNamed(context, "homescreen");
+                    // Navigate to login screen
+                    Navigator.pushReplacementNamed(context, "loginscreen");
+                  });
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e')),
@@ -125,7 +141,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   });
                 }
               },
-              child: const Text('Sign Up'),
+              child: showSpinner
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Sign Up'),
             ),
             const SizedBox(height: 20),
           ],
