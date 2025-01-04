@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "820441840325",
+    "project_id": "qiraat-bf2e6",
+    "storage_bucket": "qiraat-bf2e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:820441840325:android:ca81126d9b4df9e4ec4eac",
+        "android_client_info": {
+          "package_name": "com.AScode.qiraat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNHeBVp601uvRQTj2KG-Pn0IOnIOHVe5E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
