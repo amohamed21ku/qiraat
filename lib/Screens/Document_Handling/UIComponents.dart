@@ -35,213 +35,271 @@ class StatusProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final standardSteps = [
-      'ملف مرسل',
-      'قبول الملف',
-      'الي المحكمين',
-      'تم التحكيم',
-    ];
-
-    // Determine final status
-    final bool isApproved = status == 'تمت الموافقه';
-    final bool isRejected = status == 'تم الرفض';
-    final bool isReturnedForEdit = status == 'مرسل للتعديل';
-
-    // Always include all possible final steps
-    final List<String> displaySteps = [...standardSteps];
-
-    // Add the appropriate final status or a placeholder if none is active
-    if (isApproved) {
-      displaySteps.add('تمت الموافقه');
-    } else if (isRejected) {
-      displaySteps.add('تم الرفض');
-    } else if (isReturnedForEdit) {
-      displaySteps.add('مرسل للتعديل');
-    } else {
-      // If no final status is active yet, add a placeholder final step
-      displaySteps.add('تمت الموافقه'); // Default to approval as placeholder
-    }
-
-    // Calculate current index based on status
-    int currentIndex = displaySteps.indexOf(status);
-    if (currentIndex == -1) {
-      // If status is not in the display steps, assume it's at the latest standard step
-      currentIndex = standardSteps.length - 1;
-    }
-
-    // Reverse the steps for RTL display
-    final displayStepsRTL = displaySteps.reversed.toList();
-
-    // Recalculate current index for RTL
-    int currentIndexRTL = displaySteps.length - 1 - currentIndex;
-
     return Directionality(
       textDirection: ui.TextDirection.rtl,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text(
-              'حالة المستند',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xffa86418),
-              ),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                )
-              ],
-            ),
-            child: Column(
-              children: [
-                // Progress indicators
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Connecting lines - positioned behind the circles
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                      child: Row(
-                        children:
-                            List.generate(displayStepsRTL.length - 1, (index) {
-                          // For RTL, we need to invert the active condition
-                          return Expanded(
-                            child: Container(
-                              height: 3,
-                              color: index < currentIndexRTL
-                                  ? Color(0xffa86418)
-                                  : Colors.grey.shade300,
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                    // Progress circles
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(displayStepsRTL.length, (index) {
-                        bool isActive = index <= currentIndexRTL;
-                        bool isLast = index == displayStepsRTL.length - 1;
-                        bool isFirst = index == 0;
-
-                        // Choose icon and color based on the step and status
-                        IconData? iconData;
-                        Color stepColor;
-
-                        // For RTL, the first step is the final status
-                        if (isFirst && isActive) {
-                          if (isApproved) {
-                            iconData = Icons.check;
-                            stepColor = Colors.green;
-                          } else if (isRejected) {
-                            iconData = Icons.close;
-                            stepColor = Colors.red;
-                          } else if (isReturnedForEdit) {
-                            iconData = Icons.question_mark;
-                            stepColor = Colors.orange;
-                          } else {
-                            // For the placeholder final step when inactive
-                            iconData = null;
-                            stepColor = Colors.grey.shade300;
-                          }
-                        } else if (isLast || isActive) {
-                          // Always show check mark for last step (which is the first in RTL) and active steps
-                          iconData = Icons.check;
-                          stepColor = isActive
-                              ? Color(0xffa86418)
-                              : Colors.grey.shade300;
-                        } else {
-                          // Inactive steps (except last)
-                          iconData = null;
-                          stepColor = Colors.grey.shade300;
-                        }
-
-                        return Container(
-                          width: 60,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: stepColor,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: stepColor,
-                              width: 2,
-                            ),
-                          ),
-                          child: iconData != null
-                              ? Icon(iconData, size: 16, color: Colors.white)
-                              : null,
-                        );
-                      }),
-                    ),
-                  ],
+      child: Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 5),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                'حالة المستند',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xffa86418),
                 ),
-                const SizedBox(height: 16),
-                // Status labels - each aligned with its corresponding circle
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(displayStepsRTL.length, (index) {
-                    bool isFirst = index == 0;
-                    String displayText = displayStepsRTL[index];
+              ),
+            ),
+            SizedBox(height: 20),
+            _buildHorizontalProgress(),
+          ],
+        ),
+      ),
+    );
+  }
 
-                    // For the first step (in RTL), display the actual final status if not active yet
-                    if (isFirst && currentIndexRTL < index) {
-                      if (isApproved) {
-                        displayText = 'تمت الموافقه';
-                      } else if (isRejected) {
-                        displayText = 'تم الرفض';
-                      } else if (isReturnedForEdit) {
-                        displayText = 'مرسل للتعديل';
-                      } else {
-                        displayText =
-                            'الحالة النهائية'; // Generic final status text
-                      }
-                    }
+  Widget _buildHorizontalProgress() {
+    // Handle special end states
+    if (_isEndState(status)) {
+      return Column(
+        children: [
+          _buildHorizontalSteps(showCompleted: true),
+          SizedBox(height: 20),
+          _buildFinalStateCard(),
+        ],
+      );
+    }
 
-                    return Container(
-                      width: 60, // Same width as the circles above
-                      child: Column(
-                        children: [
-                          // Add a small vertical connector
-                          Container(
-                            width: 2,
-                            height: 8,
-                            color: index <= currentIndexRTL
-                                ? Color(0xffa86418)
-                                : Colors.grey.shade300,
-                          ),
-                          const SizedBox(height: 4),
-                          // Status text
-                          Text(
-                            displayText,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: index == currentIndexRTL
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: index == currentIndexRTL
-                                  ? Color(0xffa86418)
-                                  : Colors.black,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+    // Normal workflow
+    return _buildHorizontalSteps();
+  }
+
+  Widget _buildHorizontalSteps({bool showCompleted = false}) {
+    List<StepData> steps = [
+      StepData(
+        title: 'ملف مرسل',
+        icon: Icons.send,
+        shortTitle: 'مرسل',
+      ),
+      StepData(
+        title: 'قبول الملف',
+        icon: Icons.check_circle_outline,
+        shortTitle: 'مقبول',
+      ),
+      StepData(
+        title: 'الي المحكمين',
+        icon: Icons.people,
+        shortTitle: 'للمحكمين',
+      ),
+      StepData(
+        title: 'تم التحكيم',
+        icon: Icons.rate_review,
+        shortTitle: 'تم التحكيم',
+      ),
+      StepData(
+        title: 'الموافقة النهائية',
+        icon: Icons.gavel,
+        shortTitle: 'الموافقة',
+      ),
+    ];
+
+    return Column(
+      children: [
+        // Progress bar with circles and connecting lines
+        Container(
+          height: 60,
+          child: Stack(
+            children: [
+              // Connecting lines
+              Positioned(
+                top: 29, // Center of circles (60/2 - 1)
+                left: 30,
+                right: 30,
+                child: Row(
+                  children: List.generate(steps.length - 1, (index) {
+                    bool isCompleted =
+                        showCompleted || _isStepCompleted(steps[index].title);
+                    return Expanded(
+                      child: Container(
+                        height: 2,
+                        color:
+                            isCompleted ? Color(0xffa86418) : Colors.grey[300],
                       ),
                     );
                   }),
+                ),
+              ),
+              // Progress circles
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(steps.length, (index) {
+                  StepData step = steps[index];
+                  bool isCompleted =
+                      showCompleted || _isStepCompleted(step.title);
+                  bool isActive = !showCompleted && _isStepActive(step.title);
+
+                  Color stepColor = isCompleted
+                      ? Color(0xffa86418)
+                      : isActive
+                          ? Color(0xffa86418)
+                          : Colors.grey;
+
+                  Color bgColor = isCompleted
+                      ? Color(0xffa86418)
+                      : isActive
+                          ? Color(0xffa86418).withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.1);
+
+                  return Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: stepColor, width: 2),
+                    ),
+                    child: Icon(
+                      isCompleted ? Icons.check : step.icon,
+                      color: isCompleted ? Colors.white : stepColor,
+                      size: 24,
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 12),
+        // Step labels
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(steps.length, (index) {
+            StepData step = steps[index];
+            bool isCompleted = showCompleted || _isStepCompleted(step.title);
+            bool isActive = !showCompleted && _isStepActive(step.title);
+
+            Color textColor = isCompleted
+                ? Color(0xffa86418)
+                : isActive
+                    ? Color(0xffa86418)
+                    : Colors.grey[600]!;
+
+            return Container(
+              width: 60,
+              child: Column(
+                children: [
+                  Text(
+                    step.shortTitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isActive ? FontWeight.bold : FontWeight.normal,
+                      color: textColor,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (isActive)
+                    Container(
+                      margin: EdgeInsets.only(top: 4),
+                      height: 2,
+                      width: 20,
+                      color: Color(0xffa86418),
+                    ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFinalStateCard() {
+    Color endColor;
+    IconData endIcon;
+    String endTitle;
+    String endDescription;
+
+    switch (status) {
+      case 'تمت الموافقة النهائية':
+        endColor = Colors.green;
+        endIcon = Icons.verified;
+        endTitle = 'تمت الموافقة النهائية';
+        endDescription = 'تم قبول المستند ونشره بنجاح';
+        break;
+      case 'تم الرفض':
+      case 'تم الرفض النهائي':
+        endColor = Colors.red;
+        endIcon = Icons.cancel;
+        endTitle = status;
+        endDescription = 'تم رفض المستند';
+        break;
+      case 'مرسل للتعديل':
+        endColor = Colors.orange;
+        endIcon = Icons.edit;
+        endTitle = 'مرسل للتعديل';
+        endDescription = 'تم إرسال المستند للمؤلف للتعديل';
+        break;
+      default:
+        endColor = Colors.grey;
+        endIcon = Icons.help;
+        endTitle = status;
+        endDescription = 'حالة غير معروفة';
+    }
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: endColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: endColor.withOpacity(0.3), width: 2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: endColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(endIcon, color: Colors.white, size: 28),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  endTitle,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: endColor,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  endDescription,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: endColor.withOpacity(0.8),
+                  ),
                 ),
               ],
             ),
@@ -250,6 +308,52 @@ class StatusProgressBar extends StatelessWidget {
       ),
     );
   }
+
+  bool _isEndState(String status) {
+    return [
+      'تمت الموافقة النهائية',
+      'تم الرفض',
+      'تم الرفض النهائي',
+      'مرسل للتعديل'
+    ].contains(status);
+  }
+
+  bool _isStepActive(String stepTitle) {
+    return status == stepTitle;
+  }
+
+  bool _isStepCompleted(String stepTitle) {
+    List<String> statusOrder = [
+      'ملف مرسل',
+      'قبول الملف',
+      'الي المحكمين',
+      'تم التحكيم',
+      'الموافقة النهائية'
+    ];
+
+    int currentIndex = statusOrder.indexOf(status);
+    int stepIndex = statusOrder.indexOf(stepTitle);
+
+    // If current status is an end state, mark all normal steps as completed
+    if (_isEndState(status)) {
+      return stepIndex < statusOrder.length - 1; // All except final step
+    }
+
+    // Mark step as completed if current status has reached or passed this step
+    return currentIndex >= stepIndex;
+  }
+}
+
+class StepData {
+  final String title;
+  final String shortTitle;
+  final IconData icon;
+
+  StepData({
+    required this.title,
+    required this.shortTitle,
+    required this.icon,
+  });
 }
 
 class ActionHistoryWidget extends StatelessWidget {
@@ -420,79 +524,75 @@ class ReviewersStatusWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (reviewerApprovals.isEmpty) return SizedBox.shrink();
 
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.only(top: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            )
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'حالة موافقات المحكمين',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xffa86418),
-              ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'حالة موافقات المحكمين',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xffa86418),
             ),
-            SizedBox(height: 12),
-            ...reviewerApprovals.entries.map((entry) {
-              return Container(
-                margin: EdgeInsets.only(bottom: 8),
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: entry.value
-                      ? Colors.green.shade50
-                      : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
+          ),
+          SizedBox(height: 12),
+          ...reviewerApprovals.entries.map((entry) {
+            return Container(
+              margin: EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    entry.value ? Colors.green.shade50 : Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: entry.value ? Colors.green : Colors.orange,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    entry.value ? Icons.check_circle : Icons.hourglass_empty,
                     color: entry.value ? Colors.green : Colors.orange,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      entry.value ? Icons.check_circle : Icons.hourglass_empty,
-                      color: entry.value ? Colors.green : Colors.orange,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        entry.key,
-                        style: TextStyle(
-                          color: entry.value
-                              ? Colors.green.shade800
-                              : Colors.orange.shade800,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      entry.value ? 'تمت الموافقة' : 'في انتظار الموافقة',
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.key,
                       style: TextStyle(
-                        fontSize: 12,
                         color: entry.value
                             ? Colors.green.shade800
                             : Colors.orange.shade800,
                       ),
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ],
-        ),
+                  ),
+                  Text(
+                    entry.value ? 'تمت الموافقة' : 'في انتظار الموافقة',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: entry.value
+                          ? Colors.green.shade800
+                          : Colors.orange.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
       ),
     );
   }

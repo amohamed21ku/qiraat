@@ -17,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 3;
   List<Widget> _pages = [];
   late SharedPreferences logindata;
   bool _isHoveringOnSidebar = false;
