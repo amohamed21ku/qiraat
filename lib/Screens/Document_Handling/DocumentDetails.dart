@@ -2203,6 +2203,9 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
     );
   }
 
+// Updated _showFinalApprovalDialog method in DocumentDetails.dart
+// Replace the existing method with this updated version
+
   Future<void> _showFinalApprovalDialog() async {
     final TextEditingController commentController = TextEditingController();
 
@@ -2262,7 +2265,7 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'الموافقة النهائية',
+                                'موافقة مدير التحرير',
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
@@ -2271,7 +2274,7 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'اختر الإجراء النهائي للمستند بعد مراجعة تعليقات المحكمين',
+                                'اختر الإجراء المناسب بعد مراجعة تعليقات المحكمين',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.white.withOpacity(0.9),
@@ -2346,14 +2349,15 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
                                     child: ElevatedButton.icon(
                                       onPressed: () {
                                         Navigator.of(context).pop();
+                                        // Updated: Send to Head of Editors instead of final approval
                                         _updateDocumentStatus(
-                                            'تمت الموافقة النهائية',
+                                            'موافقة مدير التحرير',
                                             commentController.text);
                                       },
-                                      icon: Icon(Icons.verified,
-                                          color: Colors.white),
+                                      icon:
+                                          Icon(Icons.send, color: Colors.white),
                                       label: Text(
-                                        'موافقة نهائية',
+                                        'إرسال لرئيس التحرير',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 14,
@@ -2520,11 +2524,336 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
     );
   }
 
+  Future<void> _showHeadOfEditorsApprovalDialog() async {
+    final TextEditingController commentController = TextEditingController();
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Directionality(
+          textDirection: ui.TextDirection.rtl,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: 600,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    spreadRadius: 0,
+                    blurRadius: 30,
+                    offset: Offset(0, 15),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.purple.shade600,
+                          Colors.indigo.shade600
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.verified_user,
+                              color: Colors.white, size: 28),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'موافقة رئيس التحرير',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'الموافقة النهائية على المستند',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'تعليق (اختياري)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xff2d3748),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: TextField(
+                            controller: commentController,
+                            decoration: InputDecoration(
+                              hintText: 'أضف تعليقك على القرار النهائي...',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                            maxLines: 3,
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                        SizedBox(height: 24),
+
+                        // Buttons Grid
+                        Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.green.shade500,
+                                          Colors.green.shade700
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.green.withOpacity(0.3),
+                                          spreadRadius: 0,
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        _updateDocumentStatus(
+                                            'موافقة رئيس التحرير',
+                                            commentController.text);
+                                      },
+                                      icon: Icon(Icons.check_circle,
+                                          color: Colors.white),
+                                      label: Text(
+                                        'موافقة نهائية',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.orange.shade400,
+                                          Colors.orange.shade600
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.orange.withOpacity(0.3),
+                                          spreadRadius: 0,
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        _updateDocumentStatus(
+                                            'مرسل للتعديل من رئيس التحرير',
+                                            commentController.text);
+                                      },
+                                      icon:
+                                          Icon(Icons.edit, color: Colors.white),
+                                      label: Text(
+                                        'إرسال للتعديل',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.red.shade400,
+                                          Colors.red.shade600
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.red.withOpacity(0.3),
+                                          spreadRadius: 0,
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        _updateDocumentStatus(
+                                            'رفض رئيس التحرير',
+                                            commentController.text);
+                                      },
+                                      icon: Icon(Icons.block,
+                                          color: Colors.white),
+                                      label: Text(
+                                        'رفض نهائي',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    style: OutlinedButton.styleFrom(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      side: BorderSide(
+                                          color: Colors.grey.shade400),
+                                    ),
+                                    child: Text(
+                                      'إلغاء',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+// Updated _buildActionButtons method for DocumentDetails.dart
+// Replace the existing _buildActionButtons method with this updated version
   Widget _buildActionButtons(String status) {
     final currentUserProvider = Provider.of<CurrentUserProvider>(context);
     final currentUser = currentUserProvider.currentUser;
     final canAssignReviewers = _canAssignReviewers(currentUser?.position);
     final canFinalApprove = _canFinalApprove(currentUser?.position);
+    final isHeadOfEditors = currentUser?.position == 'رئيس التحرير';
+    final isEditorChief = currentUser?.position == 'مدير التحرير';
 
     if (status == 'ملف مرسل') {
       return Container(
@@ -2690,7 +3019,7 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
           ],
         ),
       );
-    } else if (status == 'تم التحكيم' && canFinalApprove) {
+    } else if (status == 'تم التحكيم' && isEditorChief && !isHeadOfEditors) {
       return Container(
         width: double.infinity,
         margin: EdgeInsets.symmetric(vertical: 20),
@@ -2712,7 +3041,48 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
         ),
         child: ElevatedButton.icon(
           onPressed: _showFinalApprovalDialog,
-          icon: Icon(Icons.gavel, color: Colors.white, size: 24),
+          icon: Icon(Icons.send, color: Colors.white, size: 24),
+          label: Text(
+            'موافقة مدير التحرير',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            padding: EdgeInsets.symmetric(vertical: 20),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      );
+    } else if (status == 'موافقة مدير التحرير' && isHeadOfEditors) {
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.indigo.shade500, Colors.purple.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.indigo.withOpacity(0.3),
+              spreadRadius: 0,
+              blurRadius: 15,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: _showHeadOfEditorsApprovalDialog,
+          icon: Icon(Icons.verified_user, color: Colors.white, size: 24),
           label: Text(
             'الموافقة النهائية',
             style: TextStyle(
@@ -2729,6 +3099,83 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
               borderRadius: BorderRadius.circular(16),
             ),
           ),
+        ),
+      );
+    } else if (status == 'موافقة مدير التحرير' && !isHeadOfEditors) {
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade50, Colors.orange.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.shade300, width: 2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.hourglass_top, color: Colors.orange, size: 24),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'بانتظار الموافقة النهائية من رئيس التحرير',
+                style: TextStyle(
+                  color: Colors.orange.shade700,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (status == 'موافقة رئيس التحرير') {
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.green.shade50, Colors.green.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green.shade300, width: 2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.verified, color: Colors.green, size: 24),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'تمت الموافقة النهائية - جاهز للنشر',
+              style: TextStyle(
+                color: Colors.green.shade700,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       );
     } else if (status == 'تم التحكيم' && !canFinalApprove) {
@@ -2759,13 +3206,88 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'بانتظار الموافقة النهائية من مدير التحرير',
+                'بانتظار موافقة مدير التحرير',
                 style: TextStyle(
                   color: Colors.blue.shade700,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (status == 'مرسل للتعديل من رئيس التحرير' ||
+        status == 'مرسل للتعديل') {
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade50, Colors.orange.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.shade300, width: 2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.edit, color: Colors.orange, size: 24),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'تم إرسال المستند للتعديل',
+              style: TextStyle(
+                color: Colors.orange.shade700,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (status == 'رفض رئيس التحرير' || status == 'تم الرفض النهائي') {
+      return Container(
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.red.shade50, Colors.red.shade100],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.red.shade300, width: 2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.cancel, color: Colors.red, size: 24),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'تم رفض المستند نهائياً',
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -3450,122 +3972,128 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
               bool isDesktop = constraints.maxWidth > 1024;
               bool isTablet = constraints.maxWidth > 768;
 
-              return Column(
+              return Stack(
                 children: [
-                  // Modern Header
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isDesktop ? 80 : 20,
-                      vertical: isDesktop ? 40 : 20,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          secondaryColor,
-                          primaryColor,
-                          Color(0xff8b5a2b),
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          spreadRadius: 0,
-                          blurRadius: 20,
-                          offset: Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: IconButton(
-                                icon: Icon(
-                                  Icons.arrow_back,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                                onPressed: () => Navigator.pop(context),
-                              ),
-                            ),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'تفاصيل المستند',
-                                    style: TextStyle(
-                                      fontSize: isDesktop ? 32 : 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'مراجعة وإدارة المستند',
-                                    style: TextStyle(
-                                      fontSize: isDesktop ? 18 : 16,
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 20),
-                        Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
+                  SingleChildScrollView(
+                    child: AnimatedBuilder(
+                      animation: _slideAnimation,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, _slideAnimation.value),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Icon(Icons.access_time,
-                                  color: Colors.white, size: 20),
-                              SizedBox(width: 12),
-                              Text(
-                                'تاريخ الإرسال: $formattedDate',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                              // Modern Header
+                              Container(
+                                width: double.infinity,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isDesktop ? 80 : 20,
+                                  vertical: isDesktop ? 40 : 20,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      secondaryColor,
+                                      primaryColor,
+                                      Color(0xff8b5a2b),
+                                    ],
+                                    begin: Alignment.topRight,
+                                    end: Alignment.bottomLeft,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      spreadRadius: 0,
+                                      blurRadius: 20,
+                                      offset: Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color:
+                                                Colors.white.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: IconButton(
+                                            icon: Icon(
+                                              Icons.arrow_back,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                          ),
+                                        ),
+                                        SizedBox(width: 20),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'تفاصيل المستند',
+                                                style: TextStyle(
+                                                  fontSize: isDesktop ? 32 : 24,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                              SizedBox(height: 8),
+                                              Text(
+                                                'مراجعة وإدارة المستند',
+                                                style: TextStyle(
+                                                  fontSize: isDesktop ? 18 : 16,
+                                                  color: Colors.white
+                                                      .withOpacity(0.9),
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 20),
+                                    Container(
+                                      padding: EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.access_time,
+                                              color: Colors.white, size: 20),
+                                          SizedBox(width: 12),
+                                          Text(
+                                            'تاريخ الإرسال: $formattedDate',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
 
-                  // Content
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        SingleChildScrollView(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isDesktop ? 80 : 20,
-                            vertical: 20,
-                          ),
-                          child: AnimatedBuilder(
-                            animation: _slideAnimation,
-                            builder: (context, child) {
-                              return Transform.translate(
-                                offset: Offset(0, _slideAnimation.value),
+                              // Content
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isDesktop ? 80 : 20,
+                                  vertical: 20,
+                                ),
                                 child: Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
@@ -3664,62 +4192,62 @@ class _DocumentDetailsPageState extends State<DocumentDetailsPage>
                                     SizedBox(height: 40),
                                   ],
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-
-                        // Loading Overlay
-                        if (_isLoading)
-                          Container(
-                            color: Colors.black.withOpacity(0.7),
-                            child: Center(
-                              child: Container(
-                                padding: EdgeInsets.all(32),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      spreadRadius: 0,
-                                      blurRadius: 30,
-                                      offset: Offset(0, 15),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      color: primaryColor,
-                                      strokeWidth: 3,
-                                    ),
-                                    SizedBox(height: 20),
-                                    Text(
-                                      'جاري المعالجة...',
-                                      style: TextStyle(
-                                        color: Color(0xff2d3748),
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'الرجاء الانتظار',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-                            ),
+                            ],
                           ),
-                      ],
+                        );
+                      },
                     ),
                   ),
+
+                  // Loading Overlay
+                  if (_isLoading)
+                    Container(
+                      color: Colors.black.withOpacity(0.7),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                spreadRadius: 0,
+                                blurRadius: 30,
+                                offset: Offset(0, 15),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(
+                                color: primaryColor,
+                                strokeWidth: 3,
+                              ),
+                              SizedBox(height: 20),
+                              Text(
+                                'جاري المعالجة...',
+                                style: TextStyle(
+                                  color: Color(0xff2d3748),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'الرجاء الانتظار',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },

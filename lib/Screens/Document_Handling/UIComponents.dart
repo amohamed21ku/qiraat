@@ -74,9 +74,12 @@ class StatusProgressBar extends StatelessWidget {
   Widget _buildHorizontalProgress() {
     // Handle special end states
     if (_isEndState(status)) {
+      // For end states, we want to show progress up to the appropriate step
+      // and then show the final state card
       return Column(
         children: [
-          _buildHorizontalSteps(showCompleted: true),
+          _buildHorizontalSteps(
+              showCompleted: false), // Don't auto-complete everything
           SizedBox(height: 20),
           _buildFinalStateCard(),
         ],
@@ -102,7 +105,7 @@ class StatusProgressBar extends StatelessWidget {
       StepData(
         title: 'الي المحكمين',
         icon: Icons.people,
-        shortTitle: 'للمحكمين',
+        shortTitle: 'الى المحكمين',
       ),
       StepData(
         title: 'تم التحكيم',
@@ -110,9 +113,14 @@ class StatusProgressBar extends StatelessWidget {
         shortTitle: 'تم التحكيم',
       ),
       StepData(
-        title: 'الموافقة النهائية',
+        title: 'موافقة مدير التحرير',
+        icon: Icons.approval,
+        shortTitle: 'موافقة مدير التحرير',
+      ),
+      StepData(
+        title: 'موافقة رئيس التحرير',
         icon: Icons.gavel,
-        shortTitle: 'الموافقة',
+        shortTitle: 'الموافقة النهائية',
       ),
     ];
 
@@ -130,13 +138,17 @@ class StatusProgressBar extends StatelessWidget {
                 right: 30,
                 child: Row(
                   children: List.generate(steps.length - 1, (index) {
-                    bool isCompleted =
-                        showCompleted || _isStepCompleted(steps[index].title);
+                    bool isLineCompleted = showCompleted ||
+                        (_isStepCompleted(steps[index].title) &&
+                            (_isStepCompleted(steps[index + 1].title) ||
+                                _isStepActive(steps[index + 1].title)));
+
                     return Expanded(
                       child: Container(
                         height: 2,
-                        color:
-                            isCompleted ? Color(0xffa86418) : Colors.grey[300],
+                        color: isLineCompleted
+                            ? Color(0xffa86418)
+                            : Colors.grey[300],
                       ),
                     );
                   }),
@@ -164,8 +176,8 @@ class StatusProgressBar extends StatelessWidget {
                           : Colors.grey.withOpacity(0.1);
 
                   return Container(
-                    width: 60,
-                    height: 60,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
                       color: bgColor,
                       shape: BoxShape.circle,
@@ -174,7 +186,7 @@ class StatusProgressBar extends StatelessWidget {
                     child: Icon(
                       isCompleted ? Icons.check : step.icon,
                       color: isCompleted ? Colors.white : stepColor,
-                      size: 24,
+                      size: 20,
                     ),
                   );
                 }),
@@ -198,15 +210,18 @@ class StatusProgressBar extends StatelessWidget {
                     : Colors.grey[600]!;
 
             return Container(
-              width: 60,
+              width: 50,
               child: Column(
                 children: [
                   Text(
                     step.shortTitle,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight:
-                          isActive ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 9,
+                      fontWeight: isActive
+                          ? FontWeight.bold
+                          : isCompleted
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                       color: textColor,
                     ),
                     textAlign: TextAlign.center,
@@ -216,9 +231,26 @@ class StatusProgressBar extends StatelessWidget {
                   if (isActive)
                     Container(
                       margin: EdgeInsets.only(top: 4),
+                      height: 3,
+                      width: 25,
+                      decoration: BoxDecoration(
+                        color: Color(0xffa86418),
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0xffa86418).withOpacity(0.4),
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (isCompleted && !isActive)
+                    Container(
+                      margin: EdgeInsets.only(top: 4),
                       height: 2,
                       width: 20,
-                      color: Color(0xffa86418),
+                      color: Color(0xffa86418).withOpacity(0.6),
                     ),
                 ],
               ),
@@ -236,19 +268,22 @@ class StatusProgressBar extends StatelessWidget {
     String endDescription;
 
     switch (status) {
+      case 'موافقة رئيس التحرير':
       case 'تمت الموافقة النهائية':
         endColor = Colors.green;
         endIcon = Icons.verified;
         endTitle = 'تمت الموافقة النهائية';
-        endDescription = 'تم قبول المستند ونشره بنجاح';
+        endDescription = 'تم قبول المستند من رئيس التحرير - جاهز للنشر';
         break;
+      case 'رفض رئيس التحرير':
       case 'تم الرفض':
       case 'تم الرفض النهائي':
         endColor = Colors.red;
         endIcon = Icons.cancel;
-        endTitle = status;
-        endDescription = 'تم رفض المستند';
+        endTitle = 'تم الرفض النهائي';
+        endDescription = 'تم رفض المستند نهائياً';
         break;
+      case 'مرسل للتعديل من رئيس التحرير':
       case 'مرسل للتعديل':
         endColor = Colors.orange;
         endIcon = Icons.edit;
@@ -311,15 +346,43 @@ class StatusProgressBar extends StatelessWidget {
 
   bool _isEndState(String status) {
     return [
+      'موافقة رئيس التحرير',
       'تمت الموافقة النهائية',
+      'رفض رئيس التحرير',
       'تم الرفض',
       'تم الرفض النهائي',
+      'مرسل للتعديل من رئيس التحرير',
       'مرسل للتعديل'
     ].contains(status);
   }
 
   bool _isStepActive(String stepTitle) {
-    return status == stepTitle;
+    // No step should be marked as active if the current status is an end state
+    if (_isEndState(status)) {
+      return false;
+    }
+
+    // A step is only active if it's the NEXT step to be completed
+    // For example, if status is "الي المحكمين", then "تم التحكيم" would be active
+    List<String> statusOrder = [
+      'ملف مرسل',
+      'قبول الملف',
+      'الي المحكمين',
+      'تم التحكيم',
+      'موافقة مدير التحرير',
+      'موافقة رئيس التحرير'
+    ];
+
+    int currentIndex = statusOrder.indexOf(status);
+    int stepIndex = statusOrder.indexOf(stepTitle);
+
+    // If current status is not in the normal workflow, no step is active
+    if (currentIndex == -1) {
+      return false;
+    }
+
+    // The next step after current status is active
+    return stepIndex == currentIndex + 1;
   }
 
   bool _isStepCompleted(String stepTitle) {
@@ -328,31 +391,51 @@ class StatusProgressBar extends StatelessWidget {
       'قبول الملف',
       'الي المحكمين',
       'تم التحكيم',
-      'الموافقة النهائية'
+      'موافقة مدير التحرير',
+      'موافقة رئيس التحرير'
     ];
 
     int currentIndex = statusOrder.indexOf(status);
     int stepIndex = statusOrder.indexOf(stepTitle);
 
-    // If current status is an end state, mark all normal steps as completed
+    // If current status is an end state, mark appropriate steps as completed
     if (_isEndState(status)) {
-      return stepIndex < statusOrder.length - 1; // All except final step
+      switch (status) {
+        case 'موافقة رئيس التحرير':
+        case 'تمت الموافقة النهائية':
+          // All steps are completed for final approval
+          return true;
+        case 'مرسل للتعديل من رئيس التحرير':
+        case 'رفض رئيس التحرير':
+          // Steps up to and including Editor Chief approval are completed
+          return stepIndex <= 4; // Include "موافقة مدير التحرير"
+        case 'مرسل للتعديل':
+          // Steps up to and including review completion are completed
+          return stepIndex <= 3; // Include "تم التحكيم"
+        default:
+          return false;
+      }
     }
 
-    // Mark step as completed if current status has reached or passed this step
+    // For normal workflow: mark step as completed if current status has reached or passed this step
+    if (currentIndex == -1) {
+      return false; // Unknown status
+    }
+
+    // FIXED: Include the current step as completed
     return currentIndex >= stepIndex;
   }
 }
 
 class StepData {
   final String title;
-  final String shortTitle;
   final IconData icon;
+  final String shortTitle;
 
   StepData({
     required this.title,
-    required this.shortTitle,
     required this.icon,
+    required this.shortTitle,
   });
 }
 

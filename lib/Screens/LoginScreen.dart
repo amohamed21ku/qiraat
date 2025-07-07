@@ -3,7 +3,7 @@ import 'package:arabic_font/arabic_font.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:qiraat/Widgets/SnackBar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'mainscreens/HomeScreen.dart';
 
@@ -17,11 +17,12 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   late bool isnew;
-
   late SharedPreferences logindata;
 
   bool showSpinner = false;
+  bool _obscureText = true;
   final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
@@ -33,11 +34,202 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> checkIfAlreadyLogin() async {
     logindata = await SharedPreferences.getInstance();
+
+    // Check if user is already signed in with Firebase Auth
+    User? currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      // User is signed in, navigate to home screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
+      return;
+    }
+
+    // Check legacy SharedPreferences method (for backwards compatibility)
     isnew = (logindata.getBool('login') ?? true);
     if (isnew == false) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (context) => HomeScreen()));
+      // Legacy login found, but verify with Firebase Auth
+      String? storedEmail = logindata.getString('email');
+      if (storedEmail != null && currentUser == null) {
+        // Clear legacy data and require re-login
+        await logindata.clear();
+      }
     }
+  }
+
+  Future<String?> getEmailFromUsername(String username) async {
+    try {
+      print("Looking up email for username: $username");
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('username', isEqualTo: username.trim())
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        String email = querySnapshot.docs.first.data()['email'];
+        print("Found email: $email");
+        return email;
+      } else {
+        print("No user found with username: $username");
+        return null;
+      }
+    } catch (e) {
+      print("Error looking up username: $e");
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserDataByUID(String uid) async {
+    try {
+      final docSnapshot = await _firestore.collection('users').doc(uid).get();
+      if (docSnapshot.exists) {
+        return docSnapshot.data();
+      }
+      return null;
+    } catch (e) {
+      print("Error getting user data: $e");
+      return null;
+    }
+  }
+
+  Future<void> loginUser() async {
+    String username = usernameController.text.trim();
+    String password = passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('برجاء إدخال اسم المستخدم وكلمة المرور'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      showSpinner = true;
+    });
+
+    try {
+      print("Starting login process for username: $username");
+
+      // First, get the email associated with this username
+      String? email = await getEmailFromUsername(username);
+
+      if (email == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('اسم المستخدم غير موجود'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          showSpinner = false;
+        });
+        return;
+      }
+
+      print("Attempting Firebase Auth login with email: $email");
+
+      // Sign in with Firebase Auth
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      print(
+          "Firebase Auth login successful for UID: ${userCredential.user?.uid}");
+
+      // Get user data from Firestore
+      Map<String, dynamic>? userData =
+          await getUserDataByUID(userCredential.user!.uid);
+
+      if (userData != null) {
+        // Store user info in shared preferences
+        await logindata.setBool('login', false);
+        await logindata.setString('username', userData['username'] ?? '');
+        await logindata.setString('name', userData['fullName'] ?? '');
+        await logindata.setString('email', userData['email'] ?? '');
+        await logindata.setString('id', userCredential.user!.uid);
+        await logindata.setString(
+            'profilePicture', userData['profileImageUrl'] ?? '');
+        await logindata.setString('position', userData['position'] ?? '');
+
+        print("User data stored in SharedPreferences");
+
+        // Navigate to home screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      } else {
+        // This shouldn't happen, but handle it just in case
+        await _auth.signOut();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('خطأ في استرجاع بيانات المستخدم'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      print("FirebaseAuthException: ${e.code} - ${e.message}");
+      String errorMessage = 'خطأ في تسجيل الدخول';
+
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage = 'لا يوجد مستخدم بهذا البريد الإلكتروني';
+          break;
+        case 'wrong-password':
+          errorMessage = 'كلمة المرور غير صحيحة';
+          break;
+        case 'invalid-email':
+          errorMessage = 'البريد الإلكتروني غير صحيح';
+          break;
+        case 'user-disabled':
+          errorMessage = 'تم تعطيل هذا الحساب';
+          break;
+        case 'too-many-requests':
+          errorMessage = 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً';
+          break;
+        case 'network-request-failed':
+          errorMessage = 'خطأ في الاتصال بالإنترنت';
+          break;
+        case 'invalid-credential':
+          errorMessage = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+          break;
+        default:
+          errorMessage = 'خطأ: ${e.message}';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      print("General error during login: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ غير متوقع: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        showSpinner = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -98,9 +290,10 @@ class _LoginScreenState extends State<LoginScreen>
                                         'تسجيل الدخول',
                                         textAlign: TextAlign.center,
                                         style: ArabicTextStyle(
-                                            arabicFont: ArabicFont.dubai,
-                                            fontSize: 25,
-                                            color: Colors.white),
+                                          arabicFont: ArabicFont.dubai,
+                                          fontSize: 25,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                       const SizedBox(height: 20),
                                       TextField(
@@ -120,12 +313,13 @@ class _LoginScreenState extends State<LoginScreen>
                                             color: Colors.grey,
                                           ),
                                         ),
+                                        textInputAction: TextInputAction.next,
                                       ),
                                       const SizedBox(height: 15),
                                       TextField(
                                         controller: passwordController,
                                         textAlign: TextAlign.right,
-                                        obscureText: true,
+                                        obscureText: _obscureText,
                                         decoration: InputDecoration(
                                           hintText: 'كلمة المرور',
                                           filled: true,
@@ -139,82 +333,27 @@ class _LoginScreenState extends State<LoginScreen>
                                             Icons.lock,
                                             color: Colors.grey,
                                           ),
+                                          suffixIcon: IconButton(
+                                            icon: Icon(
+                                              _obscureText
+                                                  ? Icons.visibility_off
+                                                  : Icons.visibility,
+                                              color: Colors.grey,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _obscureText = !_obscureText;
+                                              });
+                                            },
+                                          ),
                                         ),
+                                        textInputAction: TextInputAction.done,
+                                        onSubmitted: (_) => loginUser(),
                                       ),
                                       const SizedBox(height: 20),
                                       ElevatedButton(
-                                        onPressed: () async {
-                                          setState(() {
-                                            showSpinner = true;
-                                          });
-                                          try {
-                                            // Query Firestore to check credentials
-                                            final querySnapshot =
-                                                await _firestore
-                                                    .collection('users')
-                                                    .where('username',
-                                                        isEqualTo:
-                                                            usernameController
-                                                                .text
-                                                                .trim())
-                                                    .where('password',
-                                                        isEqualTo:
-                                                            passwordController
-                                                                .text
-                                                                .trim())
-                                                    .get();
-
-                                            if (querySnapshot.docs.isNotEmpty) {
-                                              // Successfully authenticated
-                                              // Store user info in shared preferences or similar if needed
-                                              final userData = querySnapshot
-                                                  .docs.first
-                                                  .data();
-
-                                              logindata.setBool('login', false);
-                                              logindata.setString('username',
-                                                  userData['username']);
-                                              logindata.setString('password',
-                                                  userData['password']);
-                                              logindata.setString(
-                                                  'name', userData['fullName']);
-                                              logindata.setString(
-                                                  'email', userData['email']);
-                                              logindata.setString("id",
-                                                  querySnapshot.docs.first.id);
-                                              logindata.setString(
-                                                  'profilePicture',
-                                                  userData['profileImageUrl']);
-                                              logindata.setString('position',
-                                                  userData['position']);
-
-                                              Navigator.pushReplacement(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        HomeScreen()),
-                                              );
-                                            } else {
-                                              showTopSnackBar(
-                                                Overlay.of(context),
-                                                CustomSnackBar.error(
-                                                    message:
-                                                        "اسم المستخدم او كلمة المرور غير صحيحه"),
-                                              );
-                                            }
-                                          } catch (e) {
-                                            showTopSnackBar(
-                                              Overlay.of(context),
-                                              CustomSnackBar.error(
-                                                  message:
-                                                      "Login Failed: ${e.toString()}"),
-                                            );
-                                          } finally {
-                                            setState(() {
-                                              showSpinner = false;
-                                            });
-                                          }
-                                        },
+                                        onPressed:
+                                            showSpinner ? null : loginUser,
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.white,
                                           foregroundColor:
@@ -225,10 +364,17 @@ class _LoginScreenState extends State<LoginScreen>
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                           ),
+                                          elevation: 2,
                                         ),
                                         child: showSpinner
-                                            ? const CircularProgressIndicator(
-                                                color: Color(0xFFDD9C26),
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  color: Color(0xFFDD9C26),
+                                                  strokeWidth: 3,
+                                                ),
                                               )
                                             : const Text(
                                                 'تسجيل الدخول',
@@ -240,10 +386,12 @@ class _LoginScreenState extends State<LoginScreen>
                                       ),
                                       const SizedBox(height: 20),
                                       GestureDetector(
-                                        onTap: () {
-                                          Navigator.pushNamed(
-                                              context, "signup");
-                                        },
+                                        onTap: showSpinner
+                                            ? null
+                                            : () {
+                                                Navigator.pushNamed(
+                                                    context, "signup");
+                                              },
                                         child: const Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
