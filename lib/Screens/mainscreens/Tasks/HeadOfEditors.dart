@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qiraat/Classes/current_user_providerr.dart';
-import 'package:qiraat/Screens/Document_Handling/DocumentDetails.dart';
+import 'package:qiraat/Screens/Document_Handling/DocumentDetails/DocumentDetails.dart';
 import 'dart:ui' as ui;
 
 class HeadOfEditorsTasksPage extends StatefulWidget {

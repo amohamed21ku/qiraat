@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:qiraat/Screens/Document_Handling/DocumentDetails.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui' as ui;
+
+import 'package:url_launcher/url_launcher.dart';
+
+import 'DocumentDetails/DocumentDetails.dart';
 
 class SentDocumentsPage extends StatefulWidget {
   const SentDocumentsPage({super.key});
@@ -47,7 +49,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
     );
     _slideAnimation = Tween<double>(begin: 50.0, end: 0.0).animate(
       CurvedAnimation(
-          parent: _cardAnimationController, curve: Curves.easeOutBack),
+        parent: _cardAnimationController,
+        curve: Curves.easeOutBack,
+      ),
     );
 
     _animationController.forward();
@@ -63,7 +67,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
   }
 
   void _navigateToDocumentDetails(
-      BuildContext context, DocumentSnapshot document) {
+    BuildContext context,
+    DocumentSnapshot document,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -73,8 +79,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
   }
 
   void _extractIndexErrorInfo(String errorMessage) {
-    final RegExp urlRegex =
-        RegExp(r'https://console\.firebase\.google\.com/.*?(?=,|\s|$)');
+    final RegExp urlRegex = RegExp(
+      r'https://console\.firebase\.google\.com/.*?(?=,|\s|$)',
+    );
     final match = urlRegex.firstMatch(errorMessage);
 
     if (match != null) {
@@ -152,7 +159,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
               gradient: LinearGradient(
                 colors: [
                   primaryColor.withOpacity(0.1),
-                  secondaryColor.withOpacity(0.1)
+                  secondaryColor.withOpacity(0.1),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -183,10 +190,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
           SizedBox(height: 8),
           Text(
             'الرجاء الانتظار',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -204,10 +208,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
               padding: EdgeInsets.all(32),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.grey.shade100,
-                    Colors.grey.shade50,
-                  ],
+                  colors: [Colors.grey.shade100, Colors.grey.shade50],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -242,8 +243,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
               decoration: BoxDecoration(
                 color: _getStatusColor(status).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: _getStatusColor(status).withOpacity(0.3)),
+                border: Border.all(
+                  color: _getStatusColor(status).withOpacity(0.3),
+                ),
               ),
               child: Text(
                 status,
@@ -257,10 +259,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
             SizedBox(height: 16),
             Text(
               'سيتم عرض المستندات هنا عند توفرها',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade500,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),
           ],
@@ -427,7 +426,10 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
   }
 
   Widget _buildModernDocumentCard(
-      DocumentSnapshot document, String status, int index) {
+    DocumentSnapshot document,
+    String status,
+    int index,
+  ) {
     final data = document.data() as Map<String, dynamic>;
     final DateTime? timestamp = (data['timestamp'] as Timestamp?)?.toDate();
     final String formattedDate = timestamp != null
@@ -442,10 +444,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
       margin: EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.white,
-            Colors.grey.shade50,
-          ],
+          colors: [Colors.white, Colors.grey.shade50],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -462,10 +461,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
             offset: Offset(0, 2),
           ),
         ],
-        border: Border.all(
-          color: statusColor.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: statusColor.withOpacity(0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -497,11 +493,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                           ),
                         ],
                       ),
-                      child: Icon(
-                        statusIcon,
-                        color: Colors.white,
-                        size: 24,
-                      ),
+                      child: Icon(statusIcon, color: Colors.white, size: 24),
                     ),
                     SizedBox(width: 16),
                     Expanded(
@@ -520,8 +512,11 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                           SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.schedule,
-                                  size: 14, color: Colors.grey.shade600),
+                              Icon(
+                                Icons.schedule,
+                                size: 14,
+                                color: Colors.grey.shade600,
+                              ),
                               SizedBox(width: 4),
                               Text(
                                 formattedDate,
@@ -537,8 +532,10 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                       ),
                     ),
                     Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -673,7 +670,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
 
                             return Container(
                               padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
@@ -685,7 +684,8 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                    color: reviewColor.withOpacity(0.3)),
+                                  color: reviewColor.withOpacity(0.3),
+                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: reviewColor.withOpacity(0.1),
@@ -743,8 +743,11 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle_outline,
-                            color: Colors.teal, size: 20),
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.teal,
+                          size: 20,
+                        ),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -936,22 +939,46 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                         fontSize: 14,
                       ),
                       tabs: [
-                        _buildModernTab('ملف مرسل', Icons.pending_actions,
-                            Colors.blue.shade600),
-                        _buildModernTab('قبول الملف', Icons.check_circle,
-                            Colors.green.shade700),
-                        _buildModernTab('الي المحكمين', Icons.people,
-                            Colors.purple.shade600),
-                        _buildModernTab('تم التحكيم', Icons.rate_review,
-                            Colors.teal.shade600),
-                        _buildModernTab('موافقة مدير التحرير', Icons.approval,
-                            Colors.orange.shade600),
-                        _buildModernTab('موافقة رئيس التحرير', Icons.verified,
-                            Colors.green.shade600),
                         _buildModernTab(
-                            'مرسل للتعديل', Icons.edit, Colors.orange.shade600),
+                          'ملف مرسل',
+                          Icons.pending_actions,
+                          Colors.blue.shade600,
+                        ),
                         _buildModernTab(
-                            'مرفوض', Icons.cancel, Colors.red.shade600),
+                          'قبول الملف',
+                          Icons.check_circle,
+                          Colors.green.shade700,
+                        ),
+                        _buildModernTab(
+                          'الي المحكمين',
+                          Icons.people,
+                          Colors.purple.shade600,
+                        ),
+                        _buildModernTab(
+                          'تم التحكيم',
+                          Icons.rate_review,
+                          Colors.teal.shade600,
+                        ),
+                        _buildModernTab(
+                          'موافقة مدير التحرير',
+                          Icons.approval,
+                          Colors.orange.shade600,
+                        ),
+                        _buildModernTab(
+                          'موافقة رئيس التحرير',
+                          Icons.verified,
+                          Colors.green.shade600,
+                        ),
+                        _buildModernTab(
+                          'مرسل للتعديل',
+                          Icons.edit,
+                          Colors.orange.shade600,
+                        ),
+                        _buildModernTab(
+                          'مرفوض',
+                          Icons.cancel,
+                          Colors.red.shade600,
+                        ),
                       ],
                     ),
                   ),
@@ -968,7 +995,8 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                         _buildSimpleDocumentList('موافقة مدير التحرير'),
                         _buildSimpleDocumentList('موافقة رئيس التحرير'),
                         _buildSimpleDocumentList(
-                            'مرسل للتعديل من رئيس التحرير'),
+                          'مرسل للتعديل من رئيس التحرير',
+                        ),
                         _buildSimpleDocumentList('رفض رئيس التحرير'),
                       ],
                     ),
@@ -987,11 +1015,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18),
-          SizedBox(width: 6),
-          Text(text),
-        ],
+        children: [Icon(icon, size: 18), SizedBox(width: 6), Text(text)],
       ),
     );
   }

@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Classes/current_user_providerr.dart';
-import '../../Document_Handling/DocumentDetails.dart';
+import '../../Document_Handling/DocumentDetails/DocumentDetails.dart';
 
 class SecretaryTasksPage extends StatefulWidget {
   const SecretaryTasksPage({Key? key}) : super(key: key);

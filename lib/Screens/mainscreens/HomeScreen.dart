@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import 'package:qiraat/Classes/current_user_providerr.dart';
-import 'package:qiraat/Classes/myUser.dart';
-import 'package:qiraat/Screens/Userspage.dart';
-import 'package:qiraat/Screens/mainscreens/AddPage.dart';
-import 'package:qiraat/Screens/mainscreens/HomePage.dart';
-import 'package:qiraat/Screens/mainscreens/SearchPage.dart';
-import 'package:qiraat/Screens/mainscreens/menuPage.dart';
 import 'package:qiraat/Screens/mainscreens/profilePage.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../Classes/current_user_providerr.dart';
+import '../../Classes/myUser.dart';
+import '../Userspage.dart';
+import 'AddPage.dart';
+import 'HomePage.dart';
+import 'menuPage.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -29,13 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _pages = [
-      HomePage(),
-      UsersPage(),
-      AddPage(),
-      MenuPage(),
-      ProfilePage(),
-    ];
+    _pages = [HomePage(), UsersPage(), AddPage(), MenuPage(), ProfilePage()];
     initial();
   }
 
@@ -43,8 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
     logindata = await SharedPreferences.getInstance();
 
     setState(() {
-      final currentUserProvider =
-          Provider.of<CurrentUserProvider>(context, listen: false);
+      final currentUserProvider = Provider.of<CurrentUserProvider>(
+        context,
+        listen: false,
+      );
       currentUserProvider.setCurrentUser(
         myUser(
           username: logindata.getString('username') ?? '',
@@ -86,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.black.withOpacity(0.1),
                     blurRadius: 10,
                     offset: Offset(0, 2),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -128,9 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           // Main Content - Always shows with sidebar
-          Expanded(
-            child: _pages[_selectedIndex],
-          ),
+          Expanded(child: _pages[_selectedIndex]),
         ],
       ),
     );
@@ -152,10 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(8),
             border: isSelected
                 ? Border(
-                    right: BorderSide(
-                      color: Color(0xffa86418),
-                      width: 3,
-                    ),
+                    right: BorderSide(color: Color(0xffa86418), width: 3),
                   )
                 : null,
           ),
@@ -166,10 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize:
                 _isHoveringOnSidebar ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                color: isSelected ? Color(0xffa86418) : Colors.grey,
-              )
+              Icon(icon, color: isSelected ? Color(0xffa86418) : Colors.grey)
                   .animate()
                   .fadeIn(duration: 300.ms)
                   .then()

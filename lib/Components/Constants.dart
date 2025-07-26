@@ -40,9 +40,7 @@ class RoundedButton extends StatelessWidget {
         color: colour,
         borderRadius: BorderRadius.circular(8.0),
         child: MaterialButton(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           onPressed: onPressed,
           minWidth: 325,
           height: 60,
@@ -52,19 +50,14 @@ class RoundedButton extends StatelessWidget {
               Text(
                 title,
                 style: const ArabicTextStyle(
-                    arabicFont: ArabicFont.cairo,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white),
+                  arabicFont: ArabicFont.cairo,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
-              const SizedBox(
-                width: 7,
-              ),
-              Icon(
-                icon,
-                color: Colors.white,
-                weight: 12,
-              )
+              const SizedBox(width: 7),
+              Icon(icon, color: Colors.white, weight: 12),
             ],
           ),
         ),

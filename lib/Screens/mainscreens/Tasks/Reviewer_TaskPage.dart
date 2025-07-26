@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qiraat/Classes/current_user_providerr.dart';
 import 'dart:ui' as ui;
 
-import 'package:qiraat/Screens/Document_Handling/DocumentDetails.dart';
+import 'package:qiraat/Screens/Document_Handling/DocumentDetails/DocumentDetails.dart';
 
 class ReviewerTasksPage extends StatefulWidget {
   const ReviewerTasksPage({Key? key}) : super(key: key);

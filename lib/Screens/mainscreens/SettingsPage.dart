@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:qiraat/Screens/LoginScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:ui' as ui;
+
+import '../LoginScreen.dart';
 
 class SettingPage extends StatefulWidget {
   @override

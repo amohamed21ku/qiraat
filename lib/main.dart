@@ -2,18 +2,17 @@ import 'package:arabic_font/arabic_font.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:qiraat/Classes/current_user_providerr.dart';
-import 'package:qiraat/Screens/LoginScreen.dart';
-import 'package:qiraat/Screens/SignupScreen.dart';
-import 'package:qiraat/Screens/mainscreens/HomeScreen.dart';
-import 'package:qiraat/Screens/WelcomeScreen.dart';
+
+import 'Classes/current_user_providerr.dart';
+import 'Screens/LoginScreen.dart';
+import 'Screens/SignupScreen.dart';
+import 'Screens/WelcomeScreen.dart';
+import 'Screens/mainscreens/HomeScreen.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -26,8 +25,9 @@ class MyApp extends StatelessWidget {
       create: (_) => CurrentUserProvider(),
       child: MaterialApp(
         theme: ThemeData(
-          fontFamily:
-              ArabicThemeData.font(arabicFont: ArabicFont.dinNextLTArabic),
+          fontFamily: ArabicThemeData.font(
+            arabicFont: ArabicFont.dinNextLTArabic,
+          ),
           package: ArabicThemeData.package,
         ),
         initialRoute: 'welcomescreen',

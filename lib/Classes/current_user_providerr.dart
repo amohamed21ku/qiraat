@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:qiraat/Classes/myUser.dart';
+
+import 'myUser.dart';
 
 class CurrentUserProvider with ChangeNotifier {
   myUser? _currentUser;
