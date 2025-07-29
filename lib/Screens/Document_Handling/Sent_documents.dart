@@ -1,3 +1,4 @@
+// Sent_documents.dart - Updated for Stage 1 Approval Workflow
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:url_launcher/url_launcher.dart';
 
+import 'DocumentDetails/Constants/App_Constants.dart';
 import 'DocumentDetails/DocumentDetails.dart';
 
 class SentDocumentsPage extends StatefulWidget {
@@ -29,10 +31,15 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
   final Color primaryColor = const Color(0xffa86418);
   final Color secondaryColor = const Color(0xffcc9657);
 
+  // Stage filter
+  int _selectedStage = 1; // Default to Stage 1
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this); // Updated to 8 tabs
+    // Initialize with Stage 1 statuses
+    _tabController =
+        TabController(length: AppConstants.stage1Statuses.length, vsync: this);
 
     // Initialize animations
     _animationController = AnimationController(
@@ -94,60 +101,6 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
     }
   }
 
-  // Updated _getStatusColor method to include correct statuses
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'ملف مرسل':
-        return Colors.blue.shade600;
-      case 'قبول الملف':
-        return Colors.green.shade700;
-      case 'الي المحكمين':
-        return Colors.purple.shade600;
-      case 'تم التحكيم':
-        return Colors.teal.shade600;
-      case 'موافقة مدير التحرير':
-        return Colors.orange.shade600;
-      case 'موافقة رئيس التحرير':
-      case 'تمت الموافقة النهائية':
-        return Colors.green.shade600;
-      case 'مرسل للتعديل من رئيس التحرير':
-      case 'مرسل للتعديل':
-        return Colors.blue.shade600;
-      case 'رفض رئيس التحرير':
-      case 'تم الرفض النهائي':
-        return Colors.red.shade600;
-      default:
-        return Colors.grey.shade600;
-    }
-  }
-
-  // Updated _getStatusIcon method to include correct statuses
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'ملف مرسل':
-        return Icons.pending_actions;
-      case 'قبول الملف':
-        return Icons.check_circle;
-      case 'الي المحكمين':
-        return Icons.people;
-      case 'تم التحكيم':
-        return Icons.rate_review;
-      case 'موافقة مدير التحرير':
-        return Icons.approval;
-      case 'موافقة رئيس التحرير':
-      case 'تمت الموافقة النهائية':
-        return Icons.verified;
-      case 'مرسل للتعديل من رئيس التحرير':
-      case 'مرسل للتعديل':
-        return Icons.edit;
-      case 'رفض رئيس التحرير':
-      case 'تم الرفض النهائي':
-        return Icons.cancel;
-      default:
-        return Icons.circle;
-    }
-  }
-
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -180,7 +133,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
           ),
           SizedBox(height: 24),
           Text(
-            'جاري تحميل المستندات...',
+            'جاري تحميل المقالات...',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -222,14 +175,14 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                 ],
               ),
               child: Icon(
-                Icons.folder_open,
+                AppStyles.getStatusIcon(status),
                 size: 80,
                 color: Colors.grey.shade400,
               ),
             ),
             SizedBox(height: 24),
             Text(
-              'لا توجد مستندات بحالة',
+              'لا توجد مقالات بحالة',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -241,24 +194,24 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: _getStatusColor(status).withOpacity(0.1),
+                color: AppStyles.getStatusColor(status).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _getStatusColor(status).withOpacity(0.3),
+                  color: AppStyles.getStatusColor(status).withOpacity(0.3),
                 ),
               ),
               child: Text(
-                status,
+                AppStyles.getStatusDisplayName(status),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: _getStatusColor(status),
+                  color: AppStyles.getStatusColor(status),
                 ),
               ),
             ),
             SizedBox(height: 16),
             Text(
-              'سيتم عرض المستندات هنا عند توفرها',
+              'سيتم عرض المقالات هنا عند توفرها',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),
@@ -356,7 +309,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
     );
   }
 
-  Widget _buildSimpleDocumentList(String status) {
+  Widget _buildDocumentList(String status) {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
       child: StreamBuilder<QuerySnapshot>(
@@ -409,7 +362,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                     return AnimatedContainer(
                       duration: Duration(milliseconds: 300 + (index * 100)),
                       curve: Curves.easeOutBack,
-                      child: _buildModernDocumentCard(
+                      child: _buildStage1DocumentCard(
                         documents[index],
                         status,
                         index,
@@ -425,7 +378,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
     );
   }
 
-  Widget _buildModernDocumentCard(
+  Widget _buildStage1DocumentCard(
     DocumentSnapshot document,
     String status,
     int index,
@@ -436,9 +389,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
         ? DateFormat('yyyy-MM-dd • HH:mm').format(timestamp)
         : 'لا يوجد تاريخ';
 
-    final statusColor = _getStatusColor(status);
-    final statusIcon = _getStatusIcon(status);
-    List<dynamic> reviewers = data['reviewers'] ?? [];
+    final statusColor = AppStyles.getStatusColor(status);
+    final statusIcon = AppStyles.getStatusIcon(status);
+    final stage = AppStyles.getStageNumber(status);
 
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -473,7 +426,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Row
+                // Header Row with Stage Badge
                 Row(
                   children: [
                     Container(
@@ -531,24 +484,50 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                         ],
                       ),
                     ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                    Column(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: primaryColor.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            'المرحلة $stage',
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
                         ),
-                      ),
+                        SizedBox(height: 4),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: statusColor.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            AppStyles.getStatusDisplayName(status),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -605,206 +584,304 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                   ),
                 ],
 
-                // Show reviewer information if assigned
-                if (reviewers.isNotEmpty &&
-                    (status == 'الي المحكمين' || status == 'تم التحكيم')) ...[
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple.withOpacity(0.05),
-                          Colors.purple.withOpacity(0.02),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.purple.withOpacity(0.2)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.people, color: Colors.purple, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'المحكمون المعينون:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.purple,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: reviewers.map<Widget>((reviewer) {
-                            String reviewerName = 'غير معروف';
-                            String reviewStatus = 'Pending';
+                // Stage 1 Progress indicator
+                _buildStage1Progress(status, data),
 
-                            if (reviewer is Map<String, dynamic>) {
-                              reviewerName =
-                                  reviewer['name']?.toString() ?? 'غير معروف';
-                              reviewStatus =
-                                  reviewer['review_status']?.toString() ??
-                                      'Pending';
-                            } else if (reviewer is String) {
-                              reviewerName = reviewer;
-                              reviewStatus = 'Pending';
-                            }
+                // Show responsible user for next action
+                _buildResponsibleUser(status),
 
-                            if (reviewerName.isEmpty ||
-                                reviewerName == 'null') {
-                              reviewerName = 'غير معروف';
-                            }
-
-                            Color reviewColor = reviewStatus == 'Approved'
-                                ? Colors.green
-                                : Colors.orange;
-
-                            return Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    reviewColor.withOpacity(0.1),
-                                    reviewColor.withOpacity(0.05),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: reviewColor.withOpacity(0.3),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: reviewColor.withOpacity(0.1),
-                                    blurRadius: 4,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    reviewStatus == 'Approved'
-                                        ? Icons.check_circle
-                                        : Icons.pending,
-                                    size: 16,
-                                    color: reviewColor,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    '$reviewerName (${reviewStatus == 'Approved' ? 'تم' : 'انتظار'})',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: reviewColor,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Show completion date for reviewed documents
-                if (status == 'تم التحكيم' &&
-                    data['all_approved_date'] != null) ...[
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.teal.withOpacity(0.1),
-                          Colors.teal.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.teal.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          color: Colors.teal,
-                          size: 20,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'تم إكمال المراجعة: ${DateFormat('yyyy-MM-dd • HH:mm').format((data['all_approved_date'] as Timestamp).toDate())}',
-                            style: TextStyle(
-                              color: Colors.teal.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // Show final decision information for final statuses
-                if (status == 'موافقة رئيس التحرير' ||
-                    status == 'تمت الموافقة النهائية' ||
-                    status == 'رفض رئيس التحرير' ||
-                    status == 'مرسل للتعديل من رئيس التحرير') ...[
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          statusColor.withOpacity(0.1),
-                          statusColor.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: statusColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(statusIcon, color: statusColor, size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'القرار النهائي: $status',
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                // Show review history if available
+                if (data['actionLog'] != null)
+                  _buildReviewHistory(data['actionLog'] as List),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStage1Progress(String status, Map<String, dynamic> data) {
+    final steps = AppConstants.getStage1WorkflowSteps();
+    int currentIndex = -1;
+
+    for (int i = 0; i < steps.length; i++) {
+      if (steps[i]['status'] == status) {
+        currentIndex = i;
+        break;
+      }
+    }
+
+    // Handle intermediate statuses
+    if (currentIndex == -1) {
+      if (status.startsWith('secretary_')) {
+        currentIndex = 1; // Secretary review phase
+      } else if (status.startsWith('editor_')) {
+        currentIndex = 2; // Editor review phase
+      } else if (AppStyles.isStage1FinalStatus(status)) {
+        currentIndex = steps.length - 1; // Completed
+      }
+    }
+
+    if (currentIndex == -1) return SizedBox.shrink();
+
+    final progress = (currentIndex + 1) / steps.length;
+
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'تقدم المرحلة الأولى',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              Text(
+                '${(progress * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppStyles.getStatusColor(status),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.shade200,
+            valueColor:
+                AlwaysStoppedAnimation<Color>(AppStyles.getStatusColor(status)),
+            minHeight: 6,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponsibleUser(String status) {
+    String responsibleRole = _getResponsibleRole(status);
+    if (responsibleRole.isEmpty) return SizedBox.shrink();
+
+    return Container(
+      margin: EdgeInsets.only(top: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.person_outline, color: Colors.blue, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'في انتظار: ',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            responsibleRole,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue.shade800,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewHistory(List actionLog) {
+    if (actionLog.isEmpty) return SizedBox.shrink();
+
+    // Show only the last 2 actions
+    final recentActions = actionLog.reversed.take(2).toList();
+
+    return Container(
+      margin: EdgeInsets.only(top: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, color: Colors.green, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'آخر الإجراءات:',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          ...recentActions
+              .map((action) => Container(
+                    margin: EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• ${action['action'] ?? ''} - ${action['userName'] ?? ''}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.green.shade600,
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ],
+      ),
+    );
+  }
+
+  String _getResponsibleRole(String status) {
+    switch (status) {
+      case AppConstants.INCOMING:
+      case AppConstants.SECRETARY_REVIEW:
+        return 'سكرتير التحرير';
+      case AppConstants.SECRETARY_APPROVED:
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
+      case AppConstants.EDITOR_REVIEW:
+        return 'مدير التحرير';
+      case AppConstants.EDITOR_APPROVED:
+      case AppConstants.EDITOR_REJECTED:
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+      case AppConstants.HEAD_REVIEW:
+        return 'رئيس التحرير';
+      default:
+        return '';
+    }
+  }
+
+  Widget _buildStageSelector() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(
+            'المرحلة:',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xff2d3748),
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildStageChip(1, 'الموافقة', true),
+                  SizedBox(width: 8),
+                  _buildStageChip(2, 'التحكيم', false),
+                  SizedBox(width: 8),
+                  _buildStageChip(3, 'الإنتاج', false),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStageChip(int stage, String title, bool isAvailable) {
+    bool isSelected = _selectedStage == stage;
+
+    return InkWell(
+      onTap: isAvailable
+          ? () {
+              setState(() {
+                _selectedStage = stage;
+                // Update tab controller for new stage
+                _tabController = TabController(
+                    length: AppConstants.stage1Statuses.length, vsync: this);
+              });
+            }
+          : null,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [primaryColor, secondaryColor],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected
+              ? null
+              : (isAvailable ? Colors.grey.shade100 : Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : (isAvailable ? Colors.grey.shade300 : Colors.grey.shade400),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$stage',
+              style: TextStyle(
+                color: isSelected
+                    ? Colors.white
+                    : (isAvailable ? primaryColor : Colors.grey.shade500),
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            SizedBox(width: 4),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSelected
+                    ? Colors.white
+                    : (isAvailable ? Color(0xff2d3748) : Colors.grey.shade500),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            if (!isAvailable) ...[
+              SizedBox(width: 4),
+              Icon(
+                Icons.lock,
+                size: 12,
+                color: Colors.grey.shade500,
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -821,7 +898,6 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
           child: LayoutBuilder(
             builder: (context, constraints) {
               bool isDesktop = constraints.maxWidth > 1024;
-              bool isTablet = constraints.maxWidth > 768;
 
               return Column(
                 children: [
@@ -874,7 +950,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'المستندات المرسلة',
+                                  'المقالات الأكاديمية',
                                   style: TextStyle(
                                     fontSize: isDesktop ? 32 : 24,
                                     fontWeight: FontWeight.bold,
@@ -884,7 +960,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                                 ),
                                 SizedBox(height: 8),
                                 Text(
-                                  'تتبع حالة جميع المستندات المرسلة',
+                                  'تتبع مسار المقالات في النظام الأكاديمي - المرحلة الأولى: الموافقة',
                                   style: TextStyle(
                                     fontSize: isDesktop ? 18 : 16,
                                     color: Colors.white.withOpacity(0.9),
@@ -901,7 +977,7 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Icon(
-                              Icons.folder_shared,
+                              Icons.library_books,
                               color: Colors.white,
                               size: 32,
                             ),
@@ -911,7 +987,10 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                     ),
                   ),
 
-                  // Modern Tab Bar
+                  // Stage Selector
+                  _buildStageSelector(),
+
+                  // Tab Bar for Stage 1 Statuses
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -932,54 +1011,19 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                       unselectedLabelColor: Colors.grey.shade600,
                       labelStyle: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 12,
                       ),
                       unselectedLabelStyle: TextStyle(
                         fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                        fontSize: 12,
                       ),
-                      tabs: [
-                        _buildModernTab(
-                          'ملف مرسل',
-                          Icons.pending_actions,
-                          Colors.blue.shade600,
-                        ),
-                        _buildModernTab(
-                          'قبول الملف',
-                          Icons.check_circle,
-                          Colors.green.shade700,
-                        ),
-                        _buildModernTab(
-                          'الي المحكمين',
-                          Icons.people,
-                          Colors.purple.shade600,
-                        ),
-                        _buildModernTab(
-                          'تم التحكيم',
-                          Icons.rate_review,
-                          Colors.teal.shade600,
-                        ),
-                        _buildModernTab(
-                          'موافقة مدير التحرير',
-                          Icons.approval,
-                          Colors.orange.shade600,
-                        ),
-                        _buildModernTab(
-                          'موافقة رئيس التحرير',
-                          Icons.verified,
-                          Colors.green.shade600,
-                        ),
-                        _buildModernTab(
-                          'مرسل للتعديل',
-                          Icons.edit,
-                          Colors.orange.shade600,
-                        ),
-                        _buildModernTab(
-                          'مرفوض',
-                          Icons.cancel,
-                          Colors.red.shade600,
-                        ),
-                      ],
+                      tabs: AppConstants.stage1Statuses
+                          .map((status) => _buildModernTab(
+                                AppStyles.getStatusDisplayName(status),
+                                AppStyles.getStatusIcon(status),
+                                AppStyles.getStatusColor(status),
+                              ))
+                          .toList(),
                     ),
                   ),
 
@@ -987,18 +1031,9 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [
-                        _buildSimpleDocumentList('ملف مرسل'),
-                        _buildSimpleDocumentList('قبول الملف'),
-                        _buildSimpleDocumentList('الي المحكمين'),
-                        _buildSimpleDocumentList('تم التحكيم'),
-                        _buildSimpleDocumentList('موافقة مدير التحرير'),
-                        _buildSimpleDocumentList('موافقة رئيس التحرير'),
-                        _buildSimpleDocumentList(
-                          'مرسل للتعديل من رئيس التحرير',
-                        ),
-                        _buildSimpleDocumentList('رفض رئيس التحرير'),
-                      ],
+                      children: AppConstants.stage1Statuses
+                          .map((status) => _buildDocumentList(status))
+                          .toList(),
                     ),
                   ),
                 ],
@@ -1012,10 +1047,19 @@ class _SentDocumentsPageState extends State<SentDocumentsPage>
 
   Widget _buildModernTab(String text, IconData icon, Color color) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Row(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon, size: 18), SizedBox(width: 6), Text(text)],
+        children: [
+          Icon(icon, size: 16),
+          SizedBox(height: 4),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

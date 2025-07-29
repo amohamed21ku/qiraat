@@ -7,12 +7,363 @@ class AppConstants {
   static const Color primaryColor = Color(0xffa86418);
   static const Color secondaryColor = Color(0xffcc9657);
 
+  // STAGE 1: APPROVAL WORKFLOW STATUSES (English for database)
+  static const String INCOMING = 'incoming';
+  static const String SECRETARY_REVIEW = 'secretary_review';
+  static const String SECRETARY_APPROVED = 'secretary_approved';
+  static const String SECRETARY_REJECTED = 'secretary_rejected';
+  static const String SECRETARY_EDIT_REQUESTED = 'secretary_edit_requested';
+  static const String EDITOR_REVIEW = 'editor_review';
+  static const String EDITOR_APPROVED = 'editor_approved';
+  static const String EDITOR_REJECTED = 'editor_rejected';
+  static const String EDITOR_WEBSITE_RECOMMENDED = 'editor_website_recommended';
+  static const String EDITOR_EDIT_REQUESTED = 'editor_edit_requested';
+  static const String HEAD_REVIEW = 'head_review';
+  static const String STAGE1_APPROVED = 'stage1_approved';
+  static const String FINAL_REJECTED = 'final_rejected';
+  static const String WEBSITE_APPROVED = 'website_approved';
+
+  // STAGE 2: REVIEWING (Placeholders for future implementation)
+  static const String REVIEWERS_ASSIGNED = 'reviewers_assigned';
+  static const String UNDER_PEER_REVIEW = 'under_peer_review';
+  static const String PEER_REVIEW_COMPLETED = 'peer_review_completed';
+
+  // STAGE 3: PRODUCTION (Placeholders for future implementation)
+  static const String LANGUAGE_EDITING = 'language_editing';
+  static const String LAYOUT_DESIGN = 'layout_design';
+  static const String FINAL_PRODUCTION = 'final_production';
+  static const String PUBLISHED = 'published';
   // Strings
   static const String documentDetails = 'تفاصيل المستند';
   static const String reviewAndManage = 'مراجعة وإدارة المستند';
   static const String processing = 'جاري المعالجة...';
   static const String pleaseWait = 'الرجاء الانتظار';
 
+  // Stage 1 Workflow Statuses List
+  static const List<String> stage1Statuses = [
+    INCOMING,
+    SECRETARY_REVIEW,
+    SECRETARY_APPROVED,
+    SECRETARY_REJECTED,
+    SECRETARY_EDIT_REQUESTED,
+    EDITOR_REVIEW,
+    EDITOR_APPROVED,
+    EDITOR_REJECTED,
+    EDITOR_WEBSITE_RECOMMENDED,
+    EDITOR_EDIT_REQUESTED,
+    HEAD_REVIEW,
+    STAGE1_APPROVED,
+    FINAL_REJECTED,
+    WEBSITE_APPROVED,
+  ];
+
+  // All workflow statuses
+  static const List<String> allWorkflowStatuses = [
+    ...stage1Statuses,
+    REVIEWERS_ASSIGNED,
+    UNDER_PEER_REVIEW,
+    PEER_REVIEW_COMPLETED,
+    LANGUAGE_EDITING,
+    LAYOUT_DESIGN,
+    FINAL_PRODUCTION,
+    PUBLISHED,
+  ];
+
+  // Status Display Names (Arabic for UI)
+  static const Map<String, String> statusDisplayNames = {
+    INCOMING: 'ملف وارد',
+    SECRETARY_REVIEW: 'مراجعة السكرتير',
+    SECRETARY_APPROVED: 'موافقة السكرتير',
+    SECRETARY_REJECTED: 'رفض السكرتير',
+    SECRETARY_EDIT_REQUESTED: 'تعديل مطلوب من السكرتير',
+    EDITOR_REVIEW: 'مراجعة مدير التحرير',
+    EDITOR_APPROVED: 'موافقة مدير التحرير',
+    EDITOR_REJECTED: 'رفض مدير التحرير',
+    EDITOR_WEBSITE_RECOMMENDED: 'موصى للموقع',
+    EDITOR_EDIT_REQUESTED: 'تعديل مطلوب من مدير التحرير',
+    HEAD_REVIEW: 'مراجعة رئيس التحرير',
+    STAGE1_APPROVED: 'موافق للمرحلة الثانية',
+    FINAL_REJECTED: 'مرفوض نهائياً',
+    WEBSITE_APPROVED: 'موافق لنشر الموقع',
+    // Stage 2 & 3 placeholders
+    REVIEWERS_ASSIGNED: 'تم تعيين المحكمين',
+    UNDER_PEER_REVIEW: 'تحت التحكيم',
+    PEER_REVIEW_COMPLETED: 'انتهى التحكيم',
+    LANGUAGE_EDITING: 'التحرير اللغوي',
+    LAYOUT_DESIGN: 'التصميم والإخراج',
+    FINAL_PRODUCTION: 'الإنتاج النهائي',
+    PUBLISHED: 'منشور',
+  };
+  // User Positions
+  static const String POSITION_SECRETARY = 'سكرتير تحرير';
+  static const String POSITION_MANAGING_EDITOR = 'مدير التحرير';
+  static const String POSITION_HEAD_EDITOR = 'رئيس التحرير';
+  static const String POSITION_REVIEWER = 'محكم';
+  static const String POSITION_LANGUAGE_EDITOR = 'محرر لغوي';
+  static const String POSITION_LAYOUT_DESIGNER = 'مصمم إخراج';
+  static const String POSITION_FINAL_REVIEWER = 'مراجع نهائي';
+  static const String POSITION_AUTHOR = 'مؤلف';
+
+  // Action Types for Stage 1
+  static const String ACTION_APPROVE = 'approve';
+  static const String ACTION_REJECT = 'reject';
+  static const String ACTION_REQUEST_EDIT = 'request_edit';
+  static const String ACTION_RECOMMEND_WEBSITE = 'recommend_website';
+  static const String ACTION_FINAL_APPROVE = 'final_approve';
+  static const String ACTION_FINAL_REJECT = 'final_reject';
+  static const String ACTION_WEBSITE_APPROVE = 'website_approve';
+
+  // Stage 1 Workflow Progress Steps
+  static List<Map<String, dynamic>> getStage1WorkflowSteps() {
+    return [
+      {
+        'status': INCOMING,
+        'title': 'استلام المقال',
+        'subtitle': 'ملف وارد',
+        'icon': Icons.inbox,
+        'description': 'تم استلام المقال من المؤلف',
+        'responsibleRole': 'السكرتير',
+      },
+      {
+        'status': SECRETARY_REVIEW,
+        'title': 'مراجعة السكرتير',
+        'subtitle': 'فحص أولي',
+        'icon': Icons.assignment_ind,
+        'description': 'مراجعة التنسيق والمتطلبات الأساسية',
+        'responsibleRole': 'السكرتير',
+      },
+      {
+        'status': EDITOR_REVIEW,
+        'title': 'مراجعة مدير التحرير',
+        'subtitle': 'تقييم المحتوى',
+        'icon': Icons.supervisor_account,
+        'description': 'مراجعة الملاءمة والموضوع',
+        'responsibleRole': 'مدير التحرير',
+      },
+      {
+        'status': HEAD_REVIEW,
+        'title': 'مراجعة رئيس التحرير',
+        'subtitle': 'قرار نهائي',
+        'icon': Icons.admin_panel_settings,
+        'description': 'اتخاذ القرار النهائي للمرحلة الأولى',
+        'responsibleRole': 'رئيس التحرير',
+      },
+      {
+        'status': STAGE1_APPROVED,
+        'title': 'موافق للمرحلة الثانية',
+        'subtitle': 'انتهاء المرحلة الأولى',
+        'icon': Icons.check_circle,
+        'description': 'تم قبول المقال للمرحلة الثانية (التحكيم)',
+        'responsibleRole': 'النظام',
+      },
+    ];
+  }
+
+  // Get next status based on action
+  static String getNextStatus(
+      String currentStatus, String action, String userPosition) {
+    switch (currentStatus) {
+      case INCOMING:
+        return SECRETARY_REVIEW;
+
+      case SECRETARY_REVIEW:
+        switch (action) {
+          case ACTION_APPROVE:
+            return SECRETARY_APPROVED;
+          case ACTION_REJECT:
+            return SECRETARY_REJECTED;
+          case ACTION_REQUEST_EDIT:
+            return SECRETARY_EDIT_REQUESTED;
+          default:
+            return currentStatus;
+        }
+
+      case SECRETARY_APPROVED:
+      case SECRETARY_EDIT_REQUESTED:
+        return EDITOR_REVIEW;
+
+      case EDITOR_REVIEW:
+        switch (action) {
+          case ACTION_APPROVE:
+            return EDITOR_APPROVED;
+          case ACTION_REJECT:
+            return EDITOR_REJECTED;
+          case ACTION_RECOMMEND_WEBSITE:
+            return EDITOR_WEBSITE_RECOMMENDED;
+          case ACTION_REQUEST_EDIT:
+            return EDITOR_EDIT_REQUESTED;
+          default:
+            return currentStatus;
+        }
+
+      case EDITOR_APPROVED:
+      case EDITOR_REJECTED:
+      case EDITOR_WEBSITE_RECOMMENDED:
+      case EDITOR_EDIT_REQUESTED:
+        return HEAD_REVIEW;
+
+      case HEAD_REVIEW:
+        switch (action) {
+          case ACTION_FINAL_APPROVE:
+            return STAGE1_APPROVED;
+          case ACTION_FINAL_REJECT:
+            return FINAL_REJECTED;
+          case ACTION_WEBSITE_APPROVE:
+            return WEBSITE_APPROVED;
+          default:
+            return currentStatus;
+        }
+
+      default:
+        return currentStatus;
+    }
+  }
+
+  // Get available actions for user and status
+  static List<Map<String, dynamic>> getAvailableActions(
+      String status, String userPosition) {
+    List<Map<String, dynamic>> actions = [];
+
+    switch (status) {
+      case INCOMING:
+        if (userPosition == POSITION_SECRETARY) {
+          actions.add({
+            'action': 'start_review',
+            'title': 'بدء المراجعة',
+            'description': 'بدء مراجعة الملف',
+            'icon': Icons.play_arrow,
+            'color': Colors.blue,
+            'requiresAttachment': false,
+            'requiresComment': false,
+          });
+        }
+        break;
+
+      case SECRETARY_REVIEW:
+        if (userPosition == POSITION_SECRETARY) {
+          actions.addAll([
+            {
+              'action': ACTION_APPROVE,
+              'title': 'موافقة',
+              'description': 'الموافقة على الملف وإرساله لمدير التحرير',
+              'icon': Icons.check_circle,
+              'color': Colors.green,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REJECT,
+              'title': 'رفض',
+              'description': 'رفض الملف',
+              'icon': Icons.cancel,
+              'color': Colors.red,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_EDIT,
+              'title': 'طلب تعديل',
+              'description': 'طلب تعديلات من المؤلف',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case EDITOR_REVIEW:
+        if (userPosition == POSITION_MANAGING_EDITOR) {
+          actions.addAll([
+            {
+              'action': ACTION_APPROVE,
+              'title': 'موافقة',
+              'description': 'الموافقة على الملف وإرساله لرئيس التحرير',
+              'icon': Icons.check_circle,
+              'color': Colors.green,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REJECT,
+              'title': 'رفض',
+              'description': 'رفض الملف',
+              'icon': Icons.cancel,
+              'color': Colors.red,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_RECOMMEND_WEBSITE,
+              'title': 'موصى للموقع',
+              'description': 'غير مناسب للمجلة لكن يمكن نشره على الموقع',
+              'icon': Icons.web,
+              'color': Colors.blue,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_EDIT,
+              'title': 'طلب تعديل',
+              'description': 'طلب تعديلات من المؤلف',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case HEAD_REVIEW:
+        if (userPosition == POSITION_HEAD_EDITOR) {
+          actions.addAll([
+            {
+              'action': ACTION_FINAL_APPROVE,
+              'title': 'الموافقة النهائية',
+              'description': 'الموافقة النهائية للانتقال للمرحلة الثانية',
+              'icon': Icons.verified,
+              'color': Colors.green,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_FINAL_REJECT,
+              'title': 'الرفض النهائي',
+              'description': 'الرفض النهائي للملف',
+              'icon': Icons.block,
+              'color': Colors.red,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_WEBSITE_APPROVE,
+              'title': 'موافقة نشر الموقع',
+              'description': 'الموافقة على النشر في الموقع فقط',
+              'icon': Icons.public,
+              'color': Colors.blue,
+              'requiresAttachment': true,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+    }
+
+    return actions;
+  }
+
+  // File Types
+  static const Map<String, String> supportedFileTypes = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.txt': 'text/plain',
+    '.rtf': 'application/rtf',
+    '.odt': 'application/vnd.oasis.opendocument.text',
+  };
   static const List<String> workflowStatuses = [
     'ملف وارد', // Incoming File
     'مراجعة السكرتير', // Secretary Review
@@ -55,145 +406,145 @@ class AppConstants {
     'اجتماعي',
   ];
 
-  // Action Types for Each Status
-  static Map<String, List<String>> getAvailableActions(
-      String status, String userRole) {
-    switch (status) {
-      case 'ملف وارد':
-        if (userRole == 'سكرتير تحرير') {
-          return {
-            'primary': ['مراجعة أولية وإرسال'],
-            'secondary': ['رفض لعدم اكتمال البيانات']
-          };
-        }
-        break;
-
-      case 'مراجعة السكرتير':
-        if (userRole == 'سكرتير تحرير') {
-          return {
-            'primary': ['إرسال لمدير التحرير'],
-            'secondary': ['طلب تعديل من المؤلف', 'رفض']
-          };
-        }
-        break;
-
-      case 'مراجعة مدير التحرير':
-        if (userRole == 'مدير التحرير') {
-          return {
-            'primary': ['إرسال لرئيس التحرير'],
-            'secondary': ['طلب تعديل', 'رفض', 'إرسال للموقع']
-          };
-        }
-        break;
-
-      case 'مراجعة رئيس التحرير':
-        if (userRole == 'رئيس التحرير') {
-          return {
-            'primary': ['قبول وإرسال للتحكيم', 'قبول وإرسال للتحرير اللغوي'],
-            'secondary': ['طلب تعديل', 'رفض', 'إرسال للموقع']
-          };
-        }
-        break;
-
-      case 'الي المحكمين':
-        if (userRole.contains('محكم')) {
-          return {
-            'primary': ['موافقة'],
-            'secondary': ['طلب تعديل', 'رفض']
-          };
-        } else if (userRole == 'مدير التحرير') {
-          return {
-            'primary': ['إدارة المحكمين'],
-            'secondary': ['إنهاء التحكيم']
-          };
-        }
-        break;
-
-      case 'تم التحكيم':
-        if (userRole == 'مدير التحرير') {
-          return {
-            'primary': ['إرسال لرئيس التحرير'],
-            'secondary': ['طلب تعديل من المؤلف', 'رفض']
-          };
-        }
-        break;
-
-      case 'مطلوب تعديل من المؤلف':
-        if (userRole == 'مؤلف') {
-          return {
-            'primary': ['رفع النسخة المعدلة'],
-            'secondary': ['سحب المقال']
-          };
-        }
-        break;
-
-      case 'التحرير اللغوي':
-        if (userRole == 'محرر لغوي') {
-          return {
-            'primary': ['إنهاء التحرير اللغوي'],
-            'secondary': ['طلب توضيح من المؤلف']
-          };
-        }
-        break;
-
-      case 'التصميم والإخراج':
-        if (userRole == 'مصمم إخراج') {
-          return {
-            'primary': ['إنهاء التصميم'],
-            'secondary': ['طلب توضيح']
-          };
-        }
-        break;
-
-      case 'المراجعة الأولى للإخراج':
-        if (userRole == 'مدير التحرير') {
-          return {
-            'primary': ['إرسال لرئيس التحرير'],
-            'secondary': ['إعادة للتصميم']
-          };
-        }
-        break;
-
-      case 'مراجعة رئيس التحرير للإخراج':
-        if (userRole == 'رئيس التحرير') {
-          return {
-            'primary': ['إرسال للمراجعة النهائية'],
-            'secondary': ['إعادة للتصميم', 'تعديلات مطلوبة']
-          };
-        }
-        break;
-
-      case 'المراجعة النهائية':
-        if (userRole == 'مراجع نهائي') {
-          return {
-            'primary': ['موافقة نهائية'],
-            'secondary': ['تعديلات مطلوبة']
-          };
-        }
-        break;
-
-      case 'التعديلات النهائية':
-        if (userRole == 'مصمم إخراج') {
-          return {
-            'primary': ['إنهاء التعديلات'],
-            'secondary': ['طلب توضيح']
-          };
-        }
-        break;
-    }
-    return {'primary': [], 'secondary': []};
-  }
+  // // Action Types for Each Status
+  // static Map<String, List<String>> getAvailableActions(
+  //     String status, String userRole) {
+  //   switch (status) {
+  //     case 'ملف وارد':
+  //       if (userRole == 'سكرتير تحرير') {
+  //         return {
+  //           'primary': ['مراجعة أولية وإرسال'],
+  //           'secondary': ['رفض لعدم اكتمال البيانات']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'مراجعة السكرتير':
+  //       if (userRole == 'سكرتير تحرير') {
+  //         return {
+  //           'primary': ['إرسال لمدير التحرير'],
+  //           'secondary': ['طلب تعديل من المؤلف', 'رفض']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'مراجعة مدير التحرير':
+  //       if (userRole == 'مدير التحرير') {
+  //         return {
+  //           'primary': ['إرسال لرئيس التحرير'],
+  //           'secondary': ['طلب تعديل', 'رفض', 'إرسال للموقع']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'مراجعة رئيس التحرير':
+  //       if (userRole == 'رئيس التحرير') {
+  //         return {
+  //           'primary': ['قبول وإرسال للتحكيم', 'قبول وإرسال للتحرير اللغوي'],
+  //           'secondary': ['طلب تعديل', 'رفض', 'إرسال للموقع']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'الي المحكمين':
+  //       if (userRole.contains('محكم')) {
+  //         return {
+  //           'primary': ['موافقة'],
+  //           'secondary': ['طلب تعديل', 'رفض']
+  //         };
+  //       } else if (userRole == 'مدير التحرير') {
+  //         return {
+  //           'primary': ['إدارة المحكمين'],
+  //           'secondary': ['إنهاء التحكيم']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'تم التحكيم':
+  //       if (userRole == 'مدير التحرير') {
+  //         return {
+  //           'primary': ['إرسال لرئيس التحرير'],
+  //           'secondary': ['طلب تعديل من المؤلف', 'رفض']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'مطلوب تعديل من المؤلف':
+  //       if (userRole == 'مؤلف') {
+  //         return {
+  //           'primary': ['رفع النسخة المعدلة'],
+  //           'secondary': ['سحب المقال']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'التحرير اللغوي':
+  //       if (userRole == 'محرر لغوي') {
+  //         return {
+  //           'primary': ['إنهاء التحرير اللغوي'],
+  //           'secondary': ['طلب توضيح من المؤلف']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'التصميم والإخراج':
+  //       if (userRole == 'مصمم إخراج') {
+  //         return {
+  //           'primary': ['إنهاء التصميم'],
+  //           'secondary': ['طلب توضيح']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'المراجعة الأولى للإخراج':
+  //       if (userRole == 'مدير التحرير') {
+  //         return {
+  //           'primary': ['إرسال لرئيس التحرير'],
+  //           'secondary': ['إعادة للتصميم']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'مراجعة رئيس التحرير للإخراج':
+  //       if (userRole == 'رئيس التحرير') {
+  //         return {
+  //           'primary': ['إرسال للمراجعة النهائية'],
+  //           'secondary': ['إعادة للتصميم', 'تعديلات مطلوبة']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'المراجعة النهائية':
+  //       if (userRole == 'مراجع نهائي') {
+  //         return {
+  //           'primary': ['موافقة نهائية'],
+  //           'secondary': ['تعديلات مطلوبة']
+  //         };
+  //       }
+  //       break;
+  //
+  //     case 'التعديلات النهائية':
+  //       if (userRole == 'مصمم إخراج') {
+  //         return {
+  //           'primary': ['إنهاء التعديلات'],
+  //           'secondary': ['طلب توضيح']
+  //         };
+  //       }
+  //       break;
+  //   }
+  //   return {'primary': [], 'secondary': []};
+  // }
 
   // File Types
-  static const Map<String, String> supportedFileTypes = {
-    '.pdf': 'application/pdf',
-    '.doc': 'application/msword',
-    '.docx':
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.txt': 'text/plain',
-    '.rtf': 'application/rtf',
-    '.odt': 'application/vnd.oasis.opendocument.text',
-  };
+  // static const Map<String, String> supportedFileTypes = {
+  //   '.pdf': 'application/pdf',
+  //   '.doc': 'application/msword',
+  //   '.docx':
+  //       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  //   '.txt': 'text/plain',
+  //   '.rtf': 'application/rtf',
+  //   '.odt': 'application/vnd.oasis.opendocument.text',
+  // };
 }
 
 // Constants/Style.dart
@@ -305,86 +656,112 @@ class AppStyles {
     border: Border.all(color: Colors.red.shade200),
   );
 
-  // Status Colors
+  // Status Colors for Stage 1
   static Color getStatusColor(String status) {
     switch (status) {
-      case 'ملف وارد':
+      case AppConstants.INCOMING:
         return Colors.blue.shade600;
-      case 'مراجعة السكرتير':
+      case AppConstants.SECRETARY_REVIEW:
         return Colors.orange.shade600;
-      case 'مراجعة مدير التحرير':
-        return Colors.purple.shade600;
-      case 'مراجعة رئيس التحرير':
-        return Colors.indigo.shade600;
-      case 'الي المحكمين':
-        return Colors.teal.shade600;
-      case 'تم التحكيم':
-        return Colors.green.shade600;
-      case 'مطلوب تعديل من المؤلف':
+      case AppConstants.SECRETARY_APPROVED:
+        return Colors.green.shade500;
+      case AppConstants.SECRETARY_REJECTED:
+        return Colors.red.shade500;
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
         return Colors.amber.shade600;
-      case 'التحرير اللغوي':
-        return Colors.cyan.shade600;
-      case 'التصميم والإخراج':
-        return Colors.deepPurple.shade600;
-      case 'المراجعة الأولى للإخراج':
-        return Colors.pink.shade600;
-      case 'مراجعة رئيس التحرير للإخراج':
-        return Colors.indigo.shade700;
-      case 'المراجعة النهائية':
-        return Colors.brown.shade600;
-      case 'التعديلات النهائية':
-        return Colors.deepOrange.shade600;
-      case 'الموافقة النهائية للنشر':
-        return Colors.green.shade700;
-      case 'مرفوض نهائياً':
-      case 'مرفوض لعدم الملاءمة':
+      case AppConstants.EDITOR_REVIEW:
+        return Colors.purple.shade600;
+      case AppConstants.EDITOR_APPROVED:
+        return Colors.green.shade600;
+      case AppConstants.EDITOR_REJECTED:
         return Colors.red.shade600;
-      case 'مرسل للموقع':
-        return Colors.grey.shade600;
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+        return Colors.blue.shade500;
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+        return Colors.amber.shade700;
+      case AppConstants.HEAD_REVIEW:
+        return Colors.indigo.shade600;
+      case AppConstants.STAGE1_APPROVED:
+        return Colors.green.shade700;
+      case AppConstants.FINAL_REJECTED:
+        return Colors.red.shade700;
+      case AppConstants.WEBSITE_APPROVED:
+        return Colors.blue.shade700;
       default:
         return Colors.grey.shade600;
     }
   }
 
-// Status Icons
+  // Status Icons for Stage 1
   static IconData getStatusIcon(String status) {
     switch (status) {
-      case 'ملف وارد':
+      case AppConstants.INCOMING:
         return Icons.inbox;
-      case 'مراجعة السكرتير':
+      case AppConstants.SECRETARY_REVIEW:
         return Icons.assignment_ind;
-      case 'مراجعة مدير التحرير':
-        return Icons.supervisor_account;
-      case 'مراجعة رئيس التحرير':
-        return Icons.admin_panel_settings;
-      case 'الي المحكمين':
-        return Icons.people;
-      case 'تم التحكيم':
-        return Icons.rate_review;
-      case 'مطلوب تعديل من المؤلف':
+      case AppConstants.SECRETARY_APPROVED:
+        return Icons.check_circle_outline;
+      case AppConstants.SECRETARY_REJECTED:
+        return Icons.cancel_outlined;
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
         return Icons.edit_note;
-      case 'التحرير اللغوي':
-        return Icons.spellcheck;
-      case 'التصميم والإخراج':
-        return Icons.design_services;
-      case 'المراجعة الأولى للإخراج':
-        return Icons.preview;
-      case 'مراجعة رئيس التحرير للإخراج':
+      case AppConstants.EDITOR_REVIEW:
+        return Icons.supervisor_account;
+      case AppConstants.EDITOR_APPROVED:
         return Icons.verified_user;
-      case 'المراجعة النهائية':
-        return Icons.fact_check;
-      case 'التعديلات النهائية':
-        return Icons.build;
-      case 'الموافقة النهائية للنشر':
-        return Icons.publish;
-      case 'مرفوض نهائياً':
-      case 'مرفوض لعدم الملاءمة':
-        return Icons.cancel;
-      case 'مرسل للموقع':
-        return Icons.web;
+      case AppConstants.EDITOR_REJECTED:
+        return Icons.do_not_disturb;
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+        return Icons.public;
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+        return Icons.edit;
+      case AppConstants.HEAD_REVIEW:
+        return Icons.admin_panel_settings;
+      case AppConstants.STAGE1_APPROVED:
+        return Icons.verified;
+      case AppConstants.FINAL_REJECTED:
+        return Icons.block;
+      case AppConstants.WEBSITE_APPROVED:
+        return Icons.web_asset;
       default:
         return Icons.circle;
     }
+  }
+
+  // Helper method to get display name
+  static String getStatusDisplayName(String status) {
+    return AppConstants.statusDisplayNames[status] ?? status;
+  }
+
+  // Check if status is in Stage 1
+  static bool isStage1Status(String status) {
+    return AppConstants.stage1Statuses.contains(status);
+  }
+
+  // Check if status is a final state in Stage 1
+  static bool isStage1FinalStatus(String status) {
+    return [
+      AppConstants.STAGE1_APPROVED,
+      AppConstants.FINAL_REJECTED,
+      AppConstants.WEBSITE_APPROVED,
+    ].contains(status);
+  }
+
+  // Get stage number for status
+  static int getStageNumber(String status) {
+    if (AppConstants.stage1Statuses.contains(status)) return 1;
+    if ([
+      AppConstants.REVIEWERS_ASSIGNED,
+      AppConstants.UNDER_PEER_REVIEW,
+      AppConstants.PEER_REVIEW_COMPLETED
+    ].contains(status)) return 2;
+    if ([
+      AppConstants.LANGUAGE_EDITING,
+      AppConstants.LAYOUT_DESIGN,
+      AppConstants.FINAL_PRODUCTION,
+      AppConstants.PUBLISHED
+    ].contains(status)) return 3;
+    return 0;
   }
 
   static BoxDecoration successCardDecoration = BoxDecoration(

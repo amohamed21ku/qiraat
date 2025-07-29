@@ -1,16 +1,18 @@
+// menuPage.dart - Updated for All Stages Workflow Dashboard
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:provider/provider.dart';
+import '../../stage1/Stage1DocumentsPage.dart';
+import '../Document_Handling/DocumentDetails/Services/Document_Services.dart';
+import '../Document_Handling/DocumentDetails/Constants/App_Constants.dart';
 import '../Document_Handling/Sent_documents.dart';
 import '../Userspage.dart';
 import 'IncomingFilesScreen.dart';
 import 'SettingsPage.dart';
-import 'Tasks/EditorChef_TaskPage.dart';
-import 'Tasks/HeadOfEditors.dart';
-import 'Tasks/Reviewer_TaskPage.dart';
-import 'Tasks/Secertery_TaskPage.dart';
+import 'Tasks/Stage1_Editor_TaskPage.dart';
+import 'Tasks/Stage1_HeadEditor_TaskPage.dart';
+import 'Tasks/Stage1_Secreter_TaskPage.dart';
 
 class MenuPage extends StatefulWidget {
   @override
@@ -20,15 +22,17 @@ class MenuPage extends StatefulWidget {
 class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   // User data from shared preferences
   String name = '';
-  String profilePicture = '';
   String id = '';
   String email = '';
   String position = '';
   bool isLoading = true;
   int incomingFilesCount = 0;
+  int pendingTasksCount = 0;
+  Map<String, dynamic> allStagesStatistics = {};
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  final DocumentService _documentService = DocumentService();
 
   @override
   void initState() {
@@ -55,25 +59,23 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
     final SharedPreferences logindata = await SharedPreferences.getInstance();
     setState(() {
       name = logindata.getString('name') ?? 'مستخدم';
-      profilePicture = logindata.getString('profilePicture') ??
-          'https://via.placeholder.com/150';
       id = logindata.getString('id') ?? '';
       email = logindata.getString('email') ?? '';
       position = logindata.getString('position') ?? '';
       isLoading = false;
     });
 
-    // Load incoming files count after user data is loaded
-    if (_canViewIncomingFiles()) {
-      _loadIncomingFilesCount();
-    }
+    // Load statistics and counts after user data is loaded
+    await Future.wait([
+      _loadIncomingFilesCount(),
+      _loadPendingTasksCount(),
+      _loadAllStagesStatistics(),
+    ]);
   }
 
   // Check if user can view incoming files
   bool _canViewIncomingFiles() {
-    return position == 'سكرتير تحرير' ||
-        position == 'مدير التحرير' ||
-        position == 'رئيس التحرير';
+    return PermissionService.canReviewIncomingFiles(position);
   }
 
   // Load count of incoming files
@@ -81,8 +83,10 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
     try {
       final QuerySnapshot snapshot = await FirebaseFirestore.instance
           .collection('sent_documents')
-          .where('status', isEqualTo: 'ملف مرسل')
-          .get();
+          .where('status', whereIn: [
+        AppConstants.INCOMING,
+        AppConstants.SECRETARY_REVIEW
+      ]).get();
 
       if (mounted) {
         setState(() {
@@ -94,32 +98,119 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
     }
   }
 
+  // Load count of pending tasks for current user
+  Future<void> _loadPendingTasksCount() async {
+    try {
+      final documents =
+          await _documentService.getDocumentsForUser(id, position);
+      if (mounted) {
+        setState(() {
+          pendingTasksCount = documents.length;
+        });
+      }
+    } catch (e) {
+      print('Error loading pending tasks count: $e');
+    }
+  }
+
+  // Load All Stages workflow statistics
+  Future<void> _loadAllStagesStatistics() async {
+    try {
+      // final statistics = await _documentService.getAllStagesStatistics();
+      if (mounted) {
+        setState(() {
+          // allStagesStatistics = statistics;
+        });
+      }
+    } catch (e) {
+      print('Error loading all stages statistics: $e');
+    }
+  }
+
+  void navigateToStageFiles(int stage) {
+    if (stage == 1) {
+      // Navigate to the new comprehensive Stage 1 page
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Stage1DocumentsPage()),
+      );
+    } else {
+      // Keep existing functionality for other stages
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('ملفات المرحلة $stage'),
+          backgroundColor: Color(0xff4299e1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // Navigate to ready to publish files
+  void navigateToReadyToPublishFiles() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('الملفات الجاهزة للنشر'),
+        backgroundColor: Color(0xff48bb78),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   // Navigate to the appropriate tasks page based on the user's position
   void navigateToTasksPage() {
-    if (position == 'سكرتير تحرير') {
+    if (position == AppConstants.POSITION_SECRETARY) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => SecretaryTasksPage()),
+        MaterialPageRoute(builder: (context) => Stage1SecretaryTasksPage()),
       );
-    } else if (position == 'مدير التحرير') {
+    } else if (position == AppConstants.POSITION_MANAGING_EDITOR) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => EditorChiefTasksPage()),
+        MaterialPageRoute(builder: (context) => Stage1EditorTasksPage()),
+      );
+    } else if (position == AppConstants.POSITION_HEAD_EDITOR) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Stage1HeadEditorTasksPage()),
       );
     } else if (position.contains('محكم')) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ReviewerTasksPage()),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('مهام المحكمين ستكون متاحة في المرحلة الثانية'),
+          backgroundColor: Colors.blue.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
-    } else if (position == 'رئيس التحرير') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => HeadOfEditorsTasksPage()),
+    } else if (position == AppConstants.POSITION_LANGUAGE_EDITOR) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('مهام التحرير اللغوي ستكون متاحة في المرحلة الثالثة'),
+          backgroundColor: Colors.blue.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (position == AppConstants.POSITION_LAYOUT_DESIGNER) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('مهام التصميم والإخراج ستكون متاحة في المرحلة الثالثة'),
+          backgroundColor: Colors.blue.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (position == AppConstants.POSITION_FINAL_REVIEWER) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('مهام المراجعة النهائية ستكون متاحة في المرحلة الثالثة'),
+          backgroundColor: Colors.blue.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('لا توجد صفحة مهام لهذا المستخدم'),
+          content: Text('لا توجد صفحة مهام محددة لهذا المستخدم'),
           backgroundColor: Colors.orange.shade600,
           behavior: SnackBarBehavior.floating,
         ),
@@ -195,12 +286,12 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
               return SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Header Section
+                    // Header Section - Removed Profile Picture
                     Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(
                         horizontal: isDesktop ? 80 : 20,
-                        vertical: isDesktop ? 40 : (isSmall ? 15 : 20),
+                        vertical: isDesktop ? 50 : (isSmall ? 25 : 35),
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -214,9 +305,9 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withOpacity(0.15),
                             spreadRadius: 0,
-                            blurRadius: 20,
+                            blurRadius: 25,
                             offset: Offset(0, 10),
                           ),
                         ],
@@ -230,19 +321,23 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                               Flexible(
                                 child: Container(
                                   padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
+                                    horizontal: 20,
+                                    vertical: 12,
                                   ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.3),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Text(
                                     getFormattedDate(),
                                     style: TextStyle(
-                                      fontSize: isSmall ? 12 : 14,
+                                      fontSize: isSmall ? 14 : 16,
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -251,13 +346,17 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                               Container(
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: IconButton(
                                   icon: Icon(
                                     Icons.settings_outlined,
                                     color: Colors.white,
-                                    size: isSmall ? 20 : 24,
+                                    size: isSmall ? 22 : 26,
                                   ),
                                   onPressed: () {
                                     Navigator.push(
@@ -272,108 +371,143 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                             ],
                           ),
                           SizedBox(
-                              height: isDesktop ? 40 : (isSmall ? 20 : 30)),
-                          // User profile section
-                          Row(
-                            mainAxisAlignment: isDesktop
-                                ? MainAxisAlignment.center
-                                : MainAxisAlignment.spaceBetween,
+                              height: isDesktop ? 50 : (isSmall ? 30 : 40)),
+
+                          // User welcome section - No profile picture
+                          Column(
                             children: [
-                              Expanded(
-                                flex: isDesktop ? 0 : 1,
-                                child: Column(
-                                  crossAxisAlignment: isDesktop
-                                      ? CrossAxisAlignment.center
-                                      : CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "مرحباً بعودتك،",
-                                      style: TextStyle(
-                                        fontSize: isDesktop
-                                            ? 20
-                                            : (isSmall ? 14 : 16),
-                                        fontWeight: FontWeight.w400,
-                                        color: Colors.white.withOpacity(0.9),
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      name,
-                                      style: TextStyle(
-                                        fontSize: isDesktop
-                                            ? 32
-                                            : (isSmall ? 20 : 24),
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        letterSpacing: 0.5,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (position.isNotEmpty) ...[
-                                      SizedBox(height: 8),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                        child: Text(
-                                          position,
-                                          style: TextStyle(
-                                            fontSize: isDesktop
-                                                ? 16
-                                                : (isSmall ? 12 : 14),
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+                              Text(
+                                "مرحباً بعودتك،",
+                                style: TextStyle(
+                                  fontSize:
+                                      isDesktop ? 24 : (isSmall ? 16 : 20),
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.9),
                                 ),
                               ),
-                              if (!isDesktop) SizedBox(width: 20),
-                              Container(
-                                width: isDesktop ? 120 : (isSmall ? 70 : 88),
-                                height: isDesktop ? 120 : (isSmall ? 70 : 88),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white.withOpacity(0.3),
-                                      Colors.white.withOpacity(0.1),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                              SizedBox(height: 12),
+                              Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize:
+                                      isDesktop ? 40 : (isSmall ? 24 : 30),
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                  shadows: [
+                                    Shadow(
+                                      blurRadius: 10.0,
+                                      color: Colors.black.withOpacity(0.3),
+                                      offset: Offset(2.0, 2.0),
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (position.isNotEmpty) ...[
+                                SizedBox(height: 16),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      spreadRadius: 0,
-                                      blurRadius: 15,
-                                      offset: Offset(0, 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.4),
+                                      width: 1,
                                     ),
-                                  ],
+                                  ),
+                                  child: Text(
+                                    position,
+                                    style: TextStyle(
+                                      fontSize:
+                                          isDesktop ? 18 : (isSmall ? 14 : 16),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                padding: EdgeInsets.all(4),
-                                child: CircleAvatar(
-                                  radius: isDesktop ? 56 : (isSmall ? 31 : 40),
-                                  backgroundImage: NetworkImage(profilePicture),
-                                  backgroundColor: Colors.white,
-                                ),
-                              ),
+                              ],
                             ],
                           ),
                         ],
                       ),
                     ),
 
-                    // Main content
+                    // All Stages Statistics Section
+                    if (allStagesStatistics.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.all(isDesktop ? 80 : 20),
+                        padding: EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Color(0xffa86418),
+                                        Color(0xffcc9657),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(Icons.analytics_outlined,
+                                      color: Colors.white, size: 28),
+                                ),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'إحصائيات جميع المراحل',
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xff2d3748),
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'نظرة شاملة على سير العمل في جميع مراحل النشر',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 24),
+                            _buildAllStagesStatisticsGrid(isDesktop, isTablet),
+                          ],
+                        ),
+                      ),
+
+                    // Main Actions Section
                     Container(
                       width: double.infinity,
                       padding:
@@ -381,41 +515,48 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Quick actions section
                           Text(
-                            "الإجراءات السريعة",
+                            "لوحة التحكم الرئيسية",
                             style: TextStyle(
-                              fontSize: isDesktop ? 24 : (isSmall ? 18 : 20),
+                              fontSize: isDesktop ? 28 : (isSmall ? 20 : 24),
                               fontWeight: FontWeight.bold,
                               color: Color(0xff2d3748),
                             ),
                           ),
-                          SizedBox(height: isSmall ? 12 : 20),
+                          SizedBox(height: 8),
+                          Text(
+                            "الوصول السريع لجميع وظائف النظام",
+                            style: TextStyle(
+                              fontSize: isDesktop ? 16 : 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          SizedBox(height: isSmall ? 16 : 24),
 
-                          // Grid layout for action cards
+                          // Enhanced Grid layout for action cards - More rectangular and organized
                           LayoutBuilder(
                             builder: (context, constraints) {
-                              int crossAxisCount =
-                                  isDesktop ? 4 : (isTablet ? 3 : 2);
-
-                              double cardWidth =
-                                  constraints.maxWidth / crossAxisCount;
-                              double cardHeight =
-                                  isDesktop ? 160 : (isSmall ? 110 : 140);
-                              double aspectRatio = cardWidth / cardHeight;
-
-                              List<Widget> actionCards = [
-                                ModernActionCard(
-                                  title: "المهام",
+                              // Priority actions (top row)
+                              List<Widget> priorityActions = [
+                                RectangularActionCard(
+                                  title: "مهامي",
+                                  subtitle: "المهام المعينة لي",
                                   icon: Icons.task_alt,
-                                  color: Color(0xff4299e1),
+                                  gradient: [
+                                    Color(0xff4299e1),
+                                    Color(0xff3182ce)
+                                  ],
                                   onTap: navigateToTasksPage,
-                                  isSmall: isSmall,
+                                  notificationCount: pendingTasksCount,
                                 ),
-                                ModernActionCard(
-                                  title: "جميع الملفات المرسلة",
-                                  icon: Icons.folder_copy_outlined,
-                                  color: Color(0xff48bb78),
+                                RectangularActionCard(
+                                  title: "جميع المقالات",
+                                  subtitle: "عرض شامل للمقالات",
+                                  icon: Icons.library_books,
+                                  gradient: [
+                                    Color(0xff38b2ac),
+                                    Color(0xff319795)
+                                  ],
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -425,12 +566,86 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                                       ),
                                     );
                                   },
-                                  isSmall: isSmall,
                                 ),
-                                ModernActionCard(
+                                if (_canViewIncomingFiles())
+                                  RectangularActionCard(
+                                    title: "المقالات الواردة",
+                                    subtitle: "مقالات جديدة للمراجعة",
+                                    icon: Icons.article,
+                                    gradient: [
+                                      Color(0xfff56565),
+                                      Color(0xffe53e3e)
+                                    ],
+                                    onTap: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              IncomingFilesPage(),
+                                        ),
+                                      );
+                                      if (result == true) {
+                                        _loadIncomingFilesCount();
+                                      }
+                                    },
+                                    notificationCount: incomingFilesCount,
+                                  ),
+                              ];
+
+                              // Stage files (main section)
+                              List<Widget> stageActions = [
+                                RectangularActionCard(
+                                  title: "ملفات المرحلة 1",
+                                  subtitle: "مراجعة وموافقة أولية",
+                                  icon: Icons.filter_1,
+                                  gradient: [
+                                    Color(0xffe53e3e),
+                                    Color(0xffc53030)
+                                  ],
+                                  onTap: () => navigateToStageFiles(1),
+                                ),
+                                RectangularActionCard(
+                                  title: "ملفات المرحلة 2",
+                                  subtitle: "التحكيم والمراجعة",
+                                  icon: Icons.filter_2,
+                                  gradient: [
+                                    Color(0xffed8936),
+                                    Color(0xffdd6b20)
+                                  ],
+                                  onTap: () => navigateToStageFiles(2),
+                                ),
+                                RectangularActionCard(
+                                  title: "ملفات المرحلة 3",
+                                  subtitle: "التحرير النهائي والإخراج",
+                                  icon: Icons.filter_3,
+                                  gradient: [
+                                    Color(0xff9f7aea),
+                                    Color(0xff805ad5)
+                                  ],
+                                  onTap: () => navigateToStageFiles(3),
+                                ),
+                                RectangularActionCard(
+                                  title: "جاهز للنشر",
+                                  subtitle: "الملفات المكتملة",
+                                  icon: Icons.publish,
+                                  gradient: [
+                                    Color(0xff48bb78),
+                                    Color(0xff38a169)
+                                  ],
+                                  onTap: navigateToReadyToPublishFiles,
+                                ),
+                              ];
+
+                              // Management actions (bottom section)
+                              List<Widget> managementActions = [
+                                RectangularActionCard(
                                   title: "المستخدمون",
+                                  subtitle: "إدارة المستخدمين",
                                   icon: Icons.people_outline,
-                                  color: Color(0xff9f7aea),
+                                  gradient: [
+                                    Color(0xff667eea),
+                                    Color(0xff764ba2)
+                                  ],
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -439,55 +654,114 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                                       ),
                                     );
                                   },
-                                  isSmall: isSmall,
                                 ),
-                                ModernActionCard(
-                                  title: "الموقع",
+                                RectangularActionCard(
+                                  title: "الموقع الإلكتروني",
+                                  subtitle: "زيارة الموقع الرسمي",
                                   icon: Icons.language,
-                                  color: Color(0xffed8936),
+                                  gradient: [
+                                    Color(0xfffc8181),
+                                    Color(0xfff56565)
+                                  ],
                                   onTap: () async {
                                     final Uri url =
                                         Uri.parse('https://qiraatafrican.com/');
                                     await launchUrl(url);
                                   },
-                                  isSmall: isSmall,
                                 ),
                               ];
 
-                              // Add incoming files card if user has permission
-                              if (_canViewIncomingFiles()) {
-                                actionCards.insert(
-                                    0,
-                                    ModernActionCard(
-                                      title: "الملفات الواردة",
-                                      icon: Icons.inbox,
-                                      color: Color(0xffe53e3e),
-                                      onTap: () async {
-                                        final result = await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                IncomingFilesPage(),
+                              return Column(
+                                children: [
+                                  // Priority Actions Section
+                                  if (priorityActions.isNotEmpty) ...[
+                                    Row(
+                                      children: [
+                                        Icon(Icons.priority_high,
+                                            color: Color(0xffa86418), size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "أولويات اليوم",
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff2d3748),
                                           ),
-                                        );
-                                        // Refresh count when returning from incoming files page
-                                        if (result == true) {
-                                          _loadIncomingFilesCount();
-                                        }
-                                      },
-                                      isSmall: isSmall,
-                                      notificationCount: incomingFilesCount,
-                                    ));
-                              }
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 12),
+                                    GridView.count(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      crossAxisCount: isDesktop
+                                          ? (priorityActions.length >= 3
+                                              ? 3
+                                              : 2)
+                                          : 1,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                      childAspectRatio: isDesktop ? 3.2 : 4.0,
+                                      children: priorityActions,
+                                    ),
+                                    SizedBox(height: 32),
+                                  ],
 
-                              return GridView.count(
-                                shrinkWrap: true,
-                                physics: NeverScrollableScrollPhysics(),
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: isSmall ? 8 : 16,
-                                mainAxisSpacing: isSmall ? 8 : 16,
-                                childAspectRatio: aspectRatio.clamp(0.7, 1.5),
-                                children: actionCards,
+                                  // Stage Files Section
+                                  Row(
+                                    children: [
+                                      Icon(Icons.group_work_rounded,
+                                          color: Color(0xffa86418), size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "مراحل سير العمل",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xff2d3748),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  GridView.count(
+                                    shrinkWrap: true,
+                                    physics: NeverScrollableScrollPhysics(),
+                                    crossAxisCount: isDesktop ? 2 : 1,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: isDesktop ? 3.5 : 4.0,
+                                    children: stageActions,
+                                  ),
+                                  SizedBox(height: 32),
+
+                                  // Management Section
+                                  Row(
+                                    children: [
+                                      Icon(Icons.settings,
+                                          color: Color(0xffa86418), size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        "إدارة النظام",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xff2d3748),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12),
+                                  GridView.count(
+                                    shrinkWrap: true,
+                                    physics: NeverScrollableScrollPhysics(),
+                                    crossAxisCount: isDesktop ? 2 : 1,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: isDesktop ? 3.5 : 4.0,
+                                    children: managementActions,
+                                  ),
+                                ],
                               );
                             },
                           ),
@@ -503,46 +777,184 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
       ),
     );
   }
+
+  Widget _buildAllStagesStatisticsGrid(bool isDesktop, bool isTablet) {
+    final stage1Metrics = allStagesStatistics['stage1_metrics'] ?? {};
+    final stage2Metrics = allStagesStatistics['stage2_metrics'] ?? {};
+    final stage3Metrics = allStagesStatistics['stage3_metrics'] ?? {};
+    final readyToPublish = allStagesStatistics['ready_to_publish'] ?? 0;
+
+    final List<Map<String, dynamic>> stats = [
+      {
+        'title': 'المرحلة 1',
+        'subtitle': 'مراجعة أولية',
+        'value': '${stage1Metrics['in_progress'] ?? 0}',
+        'total': '${stage1Metrics['total'] ?? 0}',
+        'icon': Icons.filter_1,
+        'color': Color(0xff4299e1),
+      },
+      {
+        'title': 'المرحلة 2',
+        'subtitle': 'التحكيم',
+        'value': '${stage2Metrics['in_progress'] ?? 0}',
+        'total': '${stage2Metrics['total'] ?? 0}',
+        'icon': Icons.filter_2,
+        'color': Color(0xffed8936),
+      },
+      {
+        'title': 'المرحلة 3',
+        'subtitle': 'التحرير النهائي',
+        'value': '${stage3Metrics['in_progress'] ?? 0}',
+        'total': '${stage3Metrics['total'] ?? 0}',
+        'icon': Icons.filter_3,
+        'color': Color(0xff9f7aea),
+      },
+      {
+        'title': 'جاهز للنشر',
+        'subtitle': 'مكتمل',
+        'value': '$readyToPublish',
+        'total': '',
+        'icon': Icons.publish,
+        'color': Color(0xff48bb78),
+      },
+    ];
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 2),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 2.2,
+      children: stats.map((stat) => _buildEnhancedStatCard(stat)).toList(),
+    );
+  }
+
+  Widget _buildEnhancedStatCard(Map<String, dynamic> stat) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            stat['color'].withOpacity(0.1),
+            stat['color'].withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: stat['color'].withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: stat['color'].withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: stat['color'].withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  stat['icon'],
+                  color: stat['color'],
+                  size: 24,
+                ),
+              ),
+              if (stat['total'].isNotEmpty)
+                Text(
+                  '/${stat['total']}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Text(
+            stat['value'],
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: stat['color'],
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            stat['title'],
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xff2d3748),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            stat['subtitle'],
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// Modern Action Card Widget - Updated to support notification badge
-class ModernActionCard extends StatefulWidget {
+// Rectangular Action Card Widget - More rectangular with expanded hover area
+class RectangularActionCard extends StatefulWidget {
   final String title;
+  final String subtitle;
   final IconData icon;
-  final Color color;
+  final List<Color> gradient;
   final VoidCallback onTap;
-  final bool isSmall;
   final int? notificationCount;
 
-  const ModernActionCard({
+  const RectangularActionCard({
     Key? key,
     required this.title,
+    required this.subtitle,
     required this.icon,
-    required this.color,
+    required this.gradient,
     required this.onTap,
-    this.isSmall = false,
     this.notificationCount,
   }) : super(key: key);
 
   @override
-  _ModernActionCardState createState() => _ModernActionCardState();
+  _RectangularActionCardState createState() => _RectangularActionCardState();
 }
 
-class _ModernActionCardState extends State<ModernActionCard>
+class _RectangularActionCardState extends State<RectangularActionCard>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _elevationAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 250),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _elevationAnimation = Tween<double>(begin: 1.0, end: 1.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
   }
 
@@ -555,99 +967,181 @@ class _ModernActionCardState extends State<ModernActionCard>
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) {
+        setState(() => _isHovered = true);
+        _controller.forward();
+      },
+      onExit: (_) {
+        setState(() => _isHovered = false);
+        _controller.reverse();
+      },
       child: GestureDetector(
-        onTapDown: (_) => _controller.forward(),
-        onTapUp: (_) => _controller.reverse(),
-        onTapCancel: () => _controller.reverse(),
         onTap: widget.onTap,
         child: AnimatedBuilder(
-          animation: _scaleAnimation,
+          animation: _controller,
           builder: (context, child) {
             return Transform.scale(
               scale: _scaleAnimation.value,
               child: Stack(
                 children: [
-                  AnimatedContainer(
-                    duration: Duration(milliseconds: 200),
+                  Container(
+                    width: double.infinity,
+                    height: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      gradient: _isHovered
+                          ? LinearGradient(
+                              colors: widget.gradient,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : LinearGradient(
+                              colors: [Colors.white, Colors.white],
+                            ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: _isHovered
-                              ? widget.color.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.05),
-                          spreadRadius: _isHovered ? 2 : 0,
-                          blurRadius: _isHovered ? 20 : 10,
-                          offset: Offset(0, _isHovered ? 8 : 4),
+                              ? widget.gradient[0].withOpacity(0.3)
+                              : Colors.black.withOpacity(0.06),
+                          spreadRadius: _isHovered ? 4 : 0,
+                          blurRadius: (_isHovered ? 25 : 12) *
+                              _elevationAnimation.value,
+                          offset: Offset(0,
+                              (_isHovered ? 8 : 4) * _elevationAnimation.value),
                         ),
+                        if (_isHovered)
+                          BoxShadow(
+                            color: widget.gradient[1].withOpacity(0.2),
+                            spreadRadius: 2,
+                            blurRadius: 15,
+                            offset: Offset(0, 12),
+                          ),
                       ],
+                      border: Border.all(
+                        color: _isHovered
+                            ? Colors.transparent
+                            : widget.gradient[0].withOpacity(0.15),
+                        width: 1.5,
+                      ),
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(widget.isSmall ? 8 : 16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      child: Row(
                         children: [
+                          // Icon container
                           Container(
-                            padding: EdgeInsets.all(widget.isSmall ? 8 : 16),
+                            padding: EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: widget.color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                              color: _isHovered
+                                  ? Colors.white.withOpacity(0.2)
+                                  : widget.gradient[0].withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _isHovered
+                                    ? Colors.white.withOpacity(0.3)
+                                    : widget.gradient[0].withOpacity(0.2),
+                                width: 1,
+                              ),
                             ),
                             child: Icon(
                               widget.icon,
-                              size: widget.isSmall ? 20 : 32,
-                              color: widget.color,
+                              size: 32,
+                              color: _isHovered
+                                  ? Colors.white
+                                  : widget.gradient[0],
                             ),
                           ),
-                          SizedBox(height: widget.isSmall ? 8 : 16),
-                          Flexible(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: widget.isSmall ? 4 : 8),
-                              child: Text(
-                                widget.title,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: widget.isSmall ? 11 : 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xff2d3748),
+                          SizedBox(width: 20),
+
+                          // Text content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  widget.title,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isHovered
+                                        ? Colors.white
+                                        : Color(0xff2d3748),
+                                    height: 1.2,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                SizedBox(height: 4),
+                                Text(
+                                  widget.subtitle,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: _isHovered
+                                        ? Colors.white.withOpacity(0.9)
+                                        : Colors.grey.shade600,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Arrow indicator
+                          AnimatedContainer(
+                            duration: Duration(milliseconds: 200),
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _isHovered
+                                  ? Colors.white.withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: _isHovered
+                                  ? Colors.white
+                                  : widget.gradient[0].withOpacity(0.7),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
+
                   // Notification badge
                   if (widget.notificationCount != null &&
                       widget.notificationCount! > 0)
                     Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 12,
+                      right: 12,
                       child: Container(
                         padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(12),
+                          gradient: LinearGradient(
+                            colors: [Color(0xffff4757), Color(0xffff3838)],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
+                              color: Color(0xffff4757).withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
                             ),
                           ],
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
                         ),
                         constraints: BoxConstraints(
-                          minWidth: 20,
-                          minHeight: 20,
+                          minWidth: 28,
+                          minHeight: 28,
                         ),
                         child: Text(
                           widget.notificationCount! > 99
@@ -655,10 +1149,28 @@ class _ModernActionCardState extends State<ModernActionCard>
                               : widget.notificationCount.toString(),
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+
+                  // Hover effect overlay
+                  if (_isHovered)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.1),
+                              Colors.transparent,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                         ),
                       ),
                     ),

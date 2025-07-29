@@ -1,3 +1,4 @@
+// IncomingFilesScreen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +9,9 @@ import 'dart:ui' as ui;
 import 'dart:io';
 
 import '../../Classes/current_user_providerr.dart';
+import '../Document_Handling/DocumentDetails/Constants/App_Constants.dart';
 import '../Document_Handling/DocumentDetails/DocumentDetails.dart';
+import '../Document_Handling/DocumentDetails/Services/Document_Services.dart';
 
 class IncomingFilesPage extends StatefulWidget {
   const IncomingFilesPage({Key? key}) : super(key: key);
@@ -27,7 +30,12 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'جميع الملفات';
-  List<String> _filterOptions = ['جميع الملفات', 'الأحدث', 'الأقدم'];
+  List<String> _filterOptions = [
+    'جميع الملفات',
+    'الأحدث',
+    'الأقدم',
+    'مطلوب إجراء'
+  ];
 
   // Define the theme colors
   final Color primaryColor = const Color(0xffa86418);
@@ -67,11 +75,9 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
     super.dispose();
   }
 
-  // Check if user can manage incoming files
+  // Check if user can manage incoming files (Editorial Secretary, Managing Editor, Editor-in-Chief)
   bool _canManageIncomingFiles(String? position) {
-    return position == 'سكرتير تحرير' ||
-        position == 'مدير التحرير' ||
-        position == 'رئيس التحرير';
+    return PermissionService.canReviewIncomingFiles(position);
   }
 
   List<DocumentSnapshot> _sortDocuments(List<DocumentSnapshot> documents) {
@@ -103,6 +109,29 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
           if (aTime == null || bTime == null) return 0;
 
           return aTime.compareTo(bTime);
+        });
+      } else if (_selectedFilter == 'مطلوب إجراء') {
+        // Show documents that need immediate action first
+        documents.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>?;
+          final bData = b.data() as Map<String, dynamic>?;
+
+          final aStatus = aData?['status'] ?? '';
+          final bStatus = bData?['status'] ?? '';
+
+          // Priority: Incoming files > Under secretary review > Others
+          final aPriority = aStatus == 'ملف وارد'
+              ? 0
+              : aStatus == 'مراجعة السكرتير'
+                  ? 1
+                  : 2;
+          final bPriority = bStatus == 'ملف وارد'
+              ? 0
+              : bStatus == 'مراجعة السكرتير'
+                  ? 1
+                  : 2;
+
+          return aPriority.compareTo(bPriority);
         });
       }
     } catch (e) {
@@ -197,7 +226,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                 Text(
                   attachedFile != null
                       ? 'جاري رفع الملف وتحديث الحالة...'
-                      : 'جاري تحديث حالة الملف...',
+                      : 'جاري تحديث حالة المقال...',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -256,31 +285,26 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
       Map<String, dynamic> updateData = {
         'status': newStatus,
         'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': currentUser?.name ?? 'غير معروف',
+        'lastUpdatedById': currentUser?.id ?? currentUser?.email ?? 'غير معروف',
         'actionLog': FieldValue.arrayUnion([actionLogEntry]),
       };
 
-      // Add specific timestamps and user info based on status
-      if (newStatus == 'ملف مرسل') {
-        updateData['processedDate'] = FieldValue.serverTimestamp();
-        updateData['processedBy'] = currentUser?.name ?? 'غير معروف';
-        updateData['processedById'] =
-            currentUser?.id ?? currentUser?.email ?? 'غير معروف';
-      } else if (newStatus == 'تم الرفض') {
-        updateData['rejectedDate'] = FieldValue.serverTimestamp();
+      // Add status-specific data
+      if (newStatus == 'مراجعة السكرتير') {
+        updateData['secretaryReviewStartDate'] = FieldValue.serverTimestamp();
+        updateData['secretaryReviewBy'] = currentUser?.name ?? 'غير معروف';
+      } else if (newStatus == 'مراجعة مدير التحرير') {
+        updateData['managingEditorReviewDate'] = FieldValue.serverTimestamp();
+        updateData['managingEditorReviewBy'] = currentUser?.name ?? 'غير معروف';
+      } else if (newStatus == 'مرفوض لعدم الملاءمة') {
+        updateData['rejectionDate'] = FieldValue.serverTimestamp();
         updateData['rejectedBy'] = currentUser?.name ?? 'غير معروف';
-        updateData['rejectedById'] =
-            currentUser?.id ?? currentUser?.email ?? 'غير معروف';
-        if (comment != null && comment.isNotEmpty) {
-          updateData['rejectionReason'] = comment;
-        }
-      } else if (newStatus == 'مطلوب تعديل') {
-        updateData['editRequestedDate'] = FieldValue.serverTimestamp();
-        updateData['editRequestedBy'] = currentUser?.name ?? 'غير معروف';
-        updateData['editRequestedById'] =
-            currentUser?.id ?? currentUser?.email ?? 'غير معروف';
-        if (comment != null && comment.isNotEmpty) {
-          updateData['editComment'] = comment;
-        }
+        updateData['rejectionReason'] = comment ?? 'مرفوض لعدم الملاءمة';
+      } else if (newStatus == 'مطلوب تعديل من المؤلف') {
+        updateData['revisionRequestedDate'] = FieldValue.serverTimestamp();
+        updateData['revisionRequestedBy'] = currentUser?.name ?? 'غير معروف';
+        updateData['awaitingAuthorRevision'] = true;
       }
 
       await FirebaseFirestore.instance
@@ -293,16 +317,19 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
       Navigator.pop(context); // Close loading dialog
 
       // Show success snackbar
-      _showSuccessSnackBar('تم تحديث حالة الملف بنجاح');
+      _showSuccessSnackBar('تم تحديث حالة المقال بنجاح');
     } catch (e) {
       if (!mounted) return;
 
       Navigator.pop(context); // Close loading dialog
-      _showErrorSnackBar('خطأ في تحديث حالة الملف: $e');
+      _showErrorSnackBar('خطأ في تحديث حالة المقال: $e');
     }
   }
 
   void _showActionDialog(DocumentSnapshot document) {
+    final data = document.data() as Map<String, dynamic>;
+    final currentStatus = data['status'] ?? 'ملف وارد';
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -349,7 +376,8 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.inbox, color: Colors.white, size: 28),
+                        child:
+                            Icon(Icons.article, color: Colors.white, size: 28),
                       ),
                       SizedBox(width: 16),
                       Expanded(
@@ -357,16 +385,16 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'إجراء على الملف الوارد',
+                              'إجراء على المقال الأكاديمي',
                               style: TextStyle(
-                                fontSize: 24,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'اختر الإجراء المناسب للملف',
+                              'اختر الإجراء المناسب للمقال',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.white.withOpacity(0.9),
@@ -399,108 +427,70 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.grey.shade200),
                         ),
-                        child: Row(
+                        child: Column(
                           children: [
-                            Icon(Icons.description,
-                                color: primaryColor, size: 24),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'ملف: ${(document.data() as Map<String, dynamic>)['fullName'] ?? 'غير معروف'}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                  color: Color(0xff2d3748),
+                            Row(
+                              children: [
+                                Icon(Icons.description,
+                                    color: primaryColor, size: 24),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'مقال: ${data['fullName'] ?? 'غير معروف'}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      color: Color(0xff2d3748),
+                                    ),
+                                  ),
                                 ),
+                              ],
+                            ),
+                            if (data['about'] != null &&
+                                data['about'].toString().isNotEmpty) ...[
+                              SizedBox(height: 12),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.info_outline,
+                                      color: primaryColor, size: 20),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      data['about'],
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade700,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ],
+                            SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Icon(Icons.access_time,
+                                    color: primaryColor, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'الحالة الحالية: $currentStatus',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade700,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
                       SizedBox(height: 24),
 
-                      // Action buttons
-                      Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildActionButton(
-                                  'قبول الملف',
-                                  Icons.check_circle,
-                                  Colors.green.shade600,
-                                  () {
-                                    Navigator.pop(context);
-                                    _showDetailedActionDialog(
-                                        document,
-                                        'ملف مرسل',
-                                        'قبول الملف',
-                                        Colors.green.shade600);
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: _buildActionButton(
-                                  'طلب تعديل',
-                                  Icons.edit,
-                                  Colors.orange.shade600,
-                                  () {
-                                    Navigator.pop(context);
-                                    _showDetailedActionDialog(
-                                        document,
-                                        'مطلوب تعديل',
-                                        'طلب تعديل',
-                                        Colors.orange.shade600);
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildActionButton(
-                                  'رفض الملف',
-                                  Icons.cancel,
-                                  Colors.red.shade600,
-                                  () {
-                                    Navigator.pop(context);
-                                    _showDetailedActionDialog(
-                                        document,
-                                        'تم الرفض',
-                                        'رفض الملف',
-                                        Colors.red.shade600);
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    side:
-                                        BorderSide(color: Colors.grey.shade400),
-                                  ),
-                                  child: Text(
-                                    'إلغاء',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade700,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      // Action buttons based on current status and user role
+                      _buildActionButtonsForStatus(currentStatus, document),
                     ],
                   ),
                 ),
@@ -512,9 +502,191 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
     );
   }
 
+  Widget _buildActionButtonsForStatus(
+      String currentStatus, DocumentSnapshot document) {
+    final currentUserProvider =
+        Provider.of<CurrentUserProvider>(context, listen: false);
+    final currentUser = currentUserProvider.currentUser;
+    final userPosition = currentUser?.position ?? '';
+
+    if (currentStatus == 'ملف وارد' &&
+        PermissionService.isEditorialSecretary(userPosition)) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  'مراجعة أولية',
+                  Icons.assignment_turned_in,
+                  Colors.blue.shade600,
+                  () {
+                    Navigator.pop(context);
+                    _showDetailedActionDialog(
+                        document,
+                        'مراجعة السكرتير',
+                        'مراجعة أولية',
+                        Colors.blue.shade600,
+                        'تم فحص البيانات الأساسية والتنسيق');
+                  },
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  'طلب تعديل',
+                  Icons.edit,
+                  Colors.orange.shade600,
+                  () {
+                    Navigator.pop(context);
+                    _showDetailedActionDialog(
+                        document,
+                        'مطلوب تعديل من المؤلف',
+                        'طلب تعديل',
+                        Colors.orange.shade600,
+                        'مطلوب تعديلات في البيانات أو التنسيق');
+                  },
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  'رفض المقال',
+                  Icons.cancel,
+                  Colors.red.shade600,
+                  () {
+                    Navigator.pop(context);
+                    _showDetailedActionDialog(
+                        document,
+                        'مرفوض لعدم الملاءمة',
+                        'رفض المقال',
+                        Colors.red.shade600,
+                        'المقال لا يتماشى مع معايير المجلة');
+                  },
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Colors.grey.shade400),
+                  ),
+                  child: Text(
+                    'إلغاء',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else if (currentStatus == 'مراجعة السكرتير' &&
+        PermissionService.isEditorialSecretary(userPosition)) {
+      return Column(
+        children: [
+          _buildActionButton(
+            'إرسال لمدير التحرير',
+            Icons.send,
+            Colors.green.shade600,
+            () {
+              Navigator.pop(context);
+              _showDetailedActionDialog(
+                  document,
+                  'مراجعة مدير التحرير',
+                  'إرسال لمدير التحرير',
+                  Colors.green.shade600,
+                  'تمت المراجعة الأولية بنجاح');
+            },
+          ),
+          SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              side: BorderSide(color: Colors.grey.shade400),
+            ),
+            child: Text(
+              'إلغاء',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info, color: Colors.orange.shade600),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'لا توجد إجراءات متاحة لك في هذه المرحلة',
+                    style: TextStyle(
+                      color: Colors.orange.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              side: BorderSide(color: Colors.grey.shade400),
+            ),
+            child: Text(
+              'إغلاق',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
   void _showDetailedActionDialog(DocumentSnapshot document, String status,
-      String action, Color actionColor) {
+      String action, Color actionColor, String defaultComment) {
     final TextEditingController commentController = TextEditingController();
+    commentController.text = defaultComment; // Pre-fill with default comment
     PlatformFile? selectedFile;
 
     showDialog(
@@ -569,11 +741,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            status == 'تم الرفض'
-                                ? Icons.cancel
-                                : status == 'مطلوب تعديل'
-                                    ? Icons.edit
-                                    : Icons.check_circle,
+                            _getActionIcon(action),
                             color: Colors.white,
                             size: 28,
                           ),
@@ -636,7 +804,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                   SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      'ملف: ${(document.data() as Map<String, dynamic>)['fullName'] ?? 'غير معروف'}',
+                                      'مقال: ${(document.data() as Map<String, dynamic>)['fullName'] ?? 'غير معروف'}',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 16,
@@ -669,7 +837,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                 maxLines: 3,
                                 textDirection: ui.TextDirection.rtl,
                                 decoration: InputDecoration(
-                                  hintText: 'اكتب تعليقك هنا (اختياري)...',
+                                  hintText: 'اكتب تعليقك هنا...',
                                   hintStyle: TextStyle(
                                     color: Colors.grey.shade500,
                                     fontSize: 14,
@@ -689,9 +857,9 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                             ),
                             SizedBox(height: 20),
 
-                            // File upload section
+                            // File upload section (same as before)
                             Text(
-                              'ملف مرفق',
+                              'ملف مرفق (اختياري)',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -722,7 +890,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                     ),
                                     SizedBox(height: 12),
                                     Text(
-                                      'اختر ملف للإرفاق (اختياري)',
+                                      'اختر ملف للإرفاق',
                                       style: TextStyle(
                                         fontSize: 16,
                                         color: Colors.grey.shade600,
@@ -884,11 +1052,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                         );
                                       },
                                       icon: Icon(
-                                        status == 'تم الرفض'
-                                            ? Icons.cancel
-                                            : status == 'مطلوب تعديل'
-                                                ? Icons.edit
-                                                : Icons.check_circle,
+                                        _getActionIcon(action),
                                         color: Colors.white,
                                         size: 20,
                                       ),
@@ -950,6 +1114,14 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
         ),
       ),
     );
+  }
+
+  IconData _getActionIcon(String action) {
+    if (action.contains('مراجعة')) return Icons.assignment_turned_in;
+    if (action.contains('تعديل')) return Icons.edit;
+    if (action.contains('رفض')) return Icons.cancel;
+    if (action.contains('إرسال')) return Icons.send;
+    return Icons.check_circle;
   }
 
   Widget _buildActionButton(
@@ -1065,7 +1237,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
           ),
           SizedBox(height: 24),
           Text(
-            'جاري تحميل الملفات الواردة...',
+            'جاري تحميل المقالات الواردة...',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -1110,14 +1282,14 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                 ],
               ),
               child: Icon(
-                Icons.inbox_outlined,
+                Icons.article_outlined,
                 size: 80,
                 color: Colors.grey.shade400,
               ),
             ),
             SizedBox(height: 24),
             Text(
-              'لا توجد ملفات واردة',
+              'لا توجد مقالات واردة',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -1127,7 +1299,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
             ),
             SizedBox(height: 16),
             Text(
-              'سيتم عرض الملفات الواردة الجديدة هنا',
+              'سيتم عرض المقالات الواردة الجديدة هنا',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade500,
@@ -1198,8 +1370,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                 color: Colors.white,
                                 size: 24,
                               ),
-                              onPressed: () => Navigator.pop(context,
-                                  true), // Return true to refresh count
+                              onPressed: () => Navigator.pop(context, true),
                             ),
                           ),
                           SizedBox(width: 20),
@@ -1208,7 +1379,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'الملفات الواردة',
+                                  'المقالات الواردة',
                                   style: TextStyle(
                                     fontSize: isDesktop ? 32 : 24,
                                     fontWeight: FontWeight.bold,
@@ -1218,7 +1389,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                                 ),
                                 SizedBox(height: 8),
                                 Text(
-                                  'إدارة الملفات الواردة الجديدة من المؤلفين',
+                                  'إدارة المقالات الواردة الجديدة من المؤلفين',
                                   style: TextStyle(
                                     fontSize: isDesktop ? 18 : 16,
                                     color: Colors.white.withOpacity(0.9),
@@ -1235,7 +1406,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Icon(
-                              Icons.inbox,
+                              Icons.article,
                               color: Colors.white,
                               size: 32,
                             ),
@@ -1280,7 +1451,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                           child: TextField(
                             controller: _searchController,
                             decoration: InputDecoration(
-                              hintText: 'ابحث عن ملف وارد...',
+                              hintText: 'ابحث عن مقال وارد...',
                               hintStyle: TextStyle(
                                 color: Colors.grey.shade500,
                                 fontSize: 16,
@@ -1402,8 +1573,10 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('sent_documents')
-                            .where('status', isEqualTo: 'ملف مرسل')
-                            .snapshots(),
+                            .where('status', whereIn: [
+                          'ملف وارد',
+                          'مراجعة السكرتير'
+                        ]).snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {
                             return Center(
@@ -1493,6 +1666,10 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
         ? DateFormat('yyyy-MM-dd • HH:mm').format(timestamp)
         : 'تاريخ غير محدد';
 
+    final status = data['status'] ?? 'ملف وارد';
+    final statusColor = AppStyles.getStatusColor(status);
+    final statusIcon = AppStyles.getStatusIcon(status);
+
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -1514,7 +1691,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
             offset: Offset(0, 2),
           ),
         ],
-        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1540,23 +1717,20 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            Colors.orange.shade400,
-                            Colors.orange.shade600
-                          ],
+                          colors: [statusColor.withOpacity(0.8), statusColor],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.orange.withOpacity(0.3),
+                            color: statusColor.withOpacity(0.3),
                             blurRadius: 8,
                             offset: Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Icon(Icons.inbox, color: Colors.white, size: 24),
+                      child: Icon(statusIcon, color: Colors.white, size: 24),
                     ),
                     SizedBox(width: 16),
                     Expanded(
@@ -1595,26 +1769,17 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                       padding:
                           EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
+                        color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.new_releases,
-                              size: 14, color: Colors.orange),
-                          SizedBox(width: 4),
-                          Text(
-                            'ملف وارد',
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
@@ -1696,7 +1861,7 @@ class _IncomingFilesPageState extends State<IncomingFilesPage>
                       onPressed: () => _showActionDialog(doc),
                       icon: Icon(Icons.settings, color: Colors.white, size: 18),
                       label: Text(
-                        'إدارة الملف',
+                        'إدارة المقال',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

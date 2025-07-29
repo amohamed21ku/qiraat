@@ -1,36 +1,23 @@
-// widgets/action_buttons_widget.dart
+// widgets/action_buttons_widget.dart - Stage 1 Approval Workflow
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../Classes/current_user_providerr.dart';
 
 import '../Constants/App_Constants.dart';
-import '../Services/Document_Services.dart';
 import '../models/document_model.dart';
 
 class ActionButtonsWidget extends StatelessWidget {
   final String status;
   final DocumentModel document;
-  final Function(String, String?) onStatusUpdate;
-  final VoidCallback? onAssignReviewers;
-  final VoidCallback? onReviewerApproval;
-  final VoidCallback? onAcceptReject;
-  final VoidCallback? onFinalApproval;
-  final VoidCallback? onHeadOfEditorsApproval;
-  final VoidCallback? onManageReviewers; // New callback for reviewer management
-  final VoidCallback?
-      onAdminStatusChange; // New callback for admin status change
+  final Function(String, String?, String?, String?)
+      onStatusUpdate; // action, comment, fileUrl, fileName
+  final VoidCallback? onAdminStatusChange;
 
   const ActionButtonsWidget({
     Key? key,
     required this.status,
     required this.document,
     required this.onStatusUpdate,
-    this.onAssignReviewers,
-    this.onReviewerApproval,
-    this.onAcceptReject,
-    this.onFinalApproval,
-    this.onHeadOfEditorsApproval,
-    this.onManageReviewers,
     this.onAdminStatusChange,
   }) : super(key: key);
 
@@ -41,12 +28,12 @@ class ActionButtonsWidget extends StatelessWidget {
         final currentUser = userProvider.currentUser;
         return Column(
           children: [
-            // Admin Controls (show first for privileged users)
+            // Admin Controls for Head Editor and Managing Editor
             if (_isPrivilegedUser(currentUser))
               _buildAdminControls(context, currentUser),
 
-            // Regular workflow buttons
-            _buildButtonForStatus(status, currentUser, context),
+            // Stage 1 Workflow Action Buttons
+            _buildStage1ActionButtons(status, currentUser, context),
           ],
         );
       },
@@ -114,88 +101,15 @@ class ActionButtonsWidget extends StatelessWidget {
             ),
           ),
 
-          // Admin Action Buttons
+          // Admin Action Button
           Padding(
             padding: EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAdminButton(
-                        title: 'تغيير الحالة',
-                        subtitle: 'تغيير حالة المستند إلى أي مرحلة',
-                        icon: Icons.swap_horiz,
-                        color: Colors.indigo,
-                        onPressed: onAdminStatusChange,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _buildAdminButton(
-                        title: 'إدارة المحكمين',
-                        subtitle: 'إضافة أو حذف أو تعديل المحكمين',
-                        icon: Icons.people_outline,
-                        color: Colors.teal,
-                        onPressed: onManageReviewers,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAdminButton(
-                        title: 'إعادة تعيين المحكمين',
-                        subtitle: 'مسح جميع المحكمين وإعادة التعيين',
-                        icon: Icons.refresh,
-                        color: Colors.orange,
-                        onPressed: () => _showResetReviewersDialog(context),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _buildAdminButton(
-                        title: 'إلغاء التحكيم',
-                        subtitle: 'إلغاء عملية التحكيم والعودة لمرحلة سابقة',
-                        icon: Icons.cancel_outlined,
-                        color: Colors.red,
-                        onPressed: () => _showCancelReviewDialog(context),
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Emergency Override Section
-                SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.emergency,
-                          color: Colors.red.shade600, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'هذه الأدوات متاحة فقط لرئيس ومدير التحرير لضمان مرونة إدارة سير العمل',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            child: _buildAdminButton(
+              title: 'تغيير الحالة',
+              subtitle: 'تغيير حالة المقال إلى أي مرحلة',
+              icon: Icons.swap_horiz,
+              color: Colors.indigo,
+              onPressed: onAdminStatusChange,
             ),
           ),
         ],
@@ -214,6 +128,7 @@ class ActionButtonsWidget extends StatelessWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(12),
       child: Container(
+        width: double.infinity,
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -237,7 +152,7 @@ class ActionButtonsWidget extends StatelessWidget {
                   ),
                   child: Icon(icon, color: color.shade600, size: 20),
                 ),
-                SizedBox(width: 8),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     title,
@@ -265,224 +180,239 @@ class ActionButtonsWidget extends StatelessWidget {
     );
   }
 
-  void _showResetReviewersDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('إعادة تعيين المحكمين'),
-        content: Text(
-          'هل أنت متأكد من رغبتك في مسح جميع المحكمين المعيّنين حالياً؟\n\nسيتم:\n• إزالة جميع المحكمين الحاليين\n• مسح جميع التعليقات والموافقات\n• إعادة الملف لمرحلة "قبول الملف"',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onStatusUpdate(
-                  'قبول الملف', 'إعادة تعيين المحكمين من قبل الإدارة');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: Text('تأكيد الإعادة'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCancelReviewDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('إلغاء التحكيم'),
-        content: Text(
-          'هل تريد إلغاء عملية التحكيم والعودة إلى مرحلة سابقة؟\n\nيمكنك اختيار المرحلة المناسبة للعودة إليها.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showBackStageDialog(context);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('اختيار مرحلة'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBackStageDialog(BuildContext context) {
-    final stages = [
-      {'key': 'ملف مرسل', 'title': 'ملف مرسل (المرحلة الأولى)'},
-      {'key': 'قبول الملف', 'title': 'قبول الملف'},
-      {'key': 'الي المحكمين', 'title': 'إلى المحكمين'},
-    ];
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('اختيار المرحلة'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: stages
-              .map((stage) => ListTile(
-                    title: Text(stage['title']!),
-                    onTap: () {
-                      Navigator.pop(context);
-                      onStatusUpdate(stage['key']!,
-                          'إعادة إلى مرحلة سابقة من قبل الإدارة');
-                    },
-                  ))
-              .toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildButtonForStatus(
+  Widget _buildStage1ActionButtons(
       String status, dynamic currentUser, BuildContext context) {
-    final canAssignReviewers =
-        PermissionService.canAssignReviewers(currentUser?.position);
-    final canFinalApprove =
-        PermissionService.canFinalApprove(currentUser?.position);
-    final isHeadOfEditors =
-        PermissionService.isHeadOfEditors(currentUser?.position);
-    final isEditorChief =
-        PermissionService.isEditorChief(currentUser?.position);
+    final userPosition = currentUser?.position ?? '';
+    final availableActions =
+        AppConstants.getAvailableActions(status, userPosition);
 
-    // Check if current user is a reviewer
-    final isCurrentUserReviewer = _isCurrentUserReviewer(currentUser);
-    final hasCurrentUserApproved = _hasCurrentUserApproved(currentUser);
-
-    switch (status) {
-      case 'ملف مرسل':
-        return _buildAcceptRejectButton();
-
-      case 'قبول الملف':
-        if (canAssignReviewers) {
-          return Column(
-            children: [
-              _buildAssignReviewersButton(),
-              // Show option to directly approve without reviewers for privileged users
-              if (_isPrivilegedUser(currentUser)) SizedBox(height: 12),
-              if (_isPrivilegedUser(currentUser)) _buildDirectApprovalButton(),
-            ],
-          );
-        }
-        break;
-
-      case 'الي المحكمين':
-        return Column(
-          children: [
-            if (isCurrentUserReviewer && !hasCurrentUserApproved)
-              _buildReviewerApprovalButton(),
-            if (isCurrentUserReviewer && hasCurrentUserApproved)
-              _buildAlreadyApprovedCard(),
-
-            // Show reviewer management for privileged users
-            if (_isPrivilegedUser(currentUser)) SizedBox(height: 12),
-            if (_isPrivilegedUser(currentUser)) _buildReviewerManagementCard(),
-          ],
-        );
-
-      case 'تم التحكيم':
-        if (isEditorChief && !isHeadOfEditors) {
-          return _buildFinalApprovalButton();
-        } else if (!canFinalApprove) {
-          return _buildWaitingForApprovalCard('بانتظار موافقة مدير التحرير');
-        }
-        break;
-
-      case 'موافقة مدير التحرير':
-        if (isHeadOfEditors) {
-          return _buildHeadOfEditorsApprovalButton();
-        } else {
-          return _buildWaitingForApprovalCard(
-              'بانتظار الموافقة النهائية من رئيس التحرير');
-        }
-        break;
-
-      case 'موافقة رئيس التحرير':
-        return _buildCompletedCard(
-            'تمت الموافقة النهائية - جاهز للنشر', Colors.green);
-
-      case 'مرسل للتعديل':
-      case 'مرسل للتعديل من رئيس التحرير':
-        return _buildCompletedCard('تم إرسال المستند للتعديل', Colors.orange);
-
-      case 'تم الرفض':
-      case 'تم الرفض النهائي':
-      case 'رفض رئيس التحرير':
-        return _buildCompletedCard('تم رفض المستند نهائياً', Colors.red);
+    if (availableActions.isEmpty) {
+      return _buildWaitingCard(status);
     }
 
-    return SizedBox.shrink();
-  }
-
-  Widget _buildDirectApprovalButton() {
     return Container(
-      width: double.infinity,
-      decoration: AppStyles.gradientButtonDecoration(
-        Colors.green.shade400,
-        Colors.green.shade600,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: () =>
-            onStatusUpdate('موافقة مدير التحرير', 'موافقة مباشرة بدون تحكيم'),
-        icon: Icon(Icons.fast_forward, color: Colors.white, size: 24),
-        label: Text(
-          'موافقة مباشرة (بدون تحكيم)',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+      margin: EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 16)),
-        ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header showing current stage
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppStyles.getStatusColor(status).withOpacity(0.8),
+                  AppStyles.getStatusColor(status),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    AppStyles.getStatusIcon(status),
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'المرحلة الأولى: الموافقة',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        AppStyles.getStatusDisplayName(status),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Action buttons
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: _buildActionButtonsList(availableActions, context),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildReviewerManagementCard() {
-    final reviewerCount = document.reviewers.length;
-    final approvedCount =
-        document.reviewers.where((r) => r.reviewStatus == 'Approved').length;
+  List<Widget> _buildActionButtonsList(
+      List<Map<String, dynamic>> actions, BuildContext context) {
+    List<Widget> buttons = [];
 
+    for (int i = 0; i < actions.length; i++) {
+      final action = actions[i];
+
+      if (i == 0) {
+        // Primary action - full width
+        buttons.add(_buildPrimaryActionButton(action, context));
+      } else {
+        // Secondary actions - smaller
+        buttons.add(SizedBox(height: 12));
+        buttons.add(_buildSecondaryActionButton(action, context));
+      }
+    }
+
+    return buttons;
+  }
+
+  Widget _buildPrimaryActionButton(
+      Map<String, dynamic> action, BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.blue.shade100],
+          colors: [action['color'].shade500, action['color'].shade700],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: action['color'].withOpacity(0.3),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: () => _showActionDialog(context, action),
+        icon: Icon(action['icon'], color: Colors.white, size: 24),
+        label: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              action['title'],
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              action['description'],
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryActionButton(
+      Map<String, dynamic> action, BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: action['color'].shade400),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ElevatedButton.icon(
+        onPressed: () => _showActionDialog(context, action),
+        icon: Icon(action['icon'], color: action['color'], size: 18),
+        label: Text(
+          action['title'],
+          style: TextStyle(
+            color: action['color'],
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaitingCard(String status) {
+    String message = _getWaitingMessage(status);
+    String responsibleRole = _getResponsibleRole(status);
+
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.symmetric(vertical: 20),
+      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.orange.shade50, Colors.orange.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.shade300, width: 2),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
+                  color: Colors.orange.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child:
-                    Icon(Icons.people, color: Colors.blue.shade600, size: 20),
+                    Icon(Icons.hourglass_top, color: Colors.orange, size: 24),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -490,351 +420,298 @@ class ActionButtonsWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'إدارة المحكمين',
+                      message,
                       style: TextStyle(
+                        color: Colors.orange.shade700,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
                       ),
                     ),
-                    Text(
-                      'العدد: $reviewerCount • وافق: $approvedCount',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade600,
+                    if (responsibleRole.isNotEmpty) ...[
+                      SizedBox(height: 4),
+                      Text(
+                        'المسؤول: $responsibleRole',
+                        style: TextStyle(
+                          color: Colors.orange.shade600,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  String _getWaitingMessage(String status) {
+    switch (status) {
+      case AppConstants.INCOMING:
+        return 'في انتظار بدء المراجعة';
+      case AppConstants.SECRETARY_APPROVED:
+        return 'في انتظار مراجعة مدير التحرير';
+      case AppConstants.SECRETARY_REJECTED:
+        return 'تم رفض الملف من السكرتير';
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
+        return 'في انتظار مراجعة مدير التحرير للتعديلات المطلوبة';
+      case AppConstants.EDITOR_APPROVED:
+      case AppConstants.EDITOR_REJECTED:
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+        return 'في انتظار القرار النهائي من رئيس التحرير';
+      case AppConstants.STAGE1_APPROVED:
+        return 'تمت الموافقة النهائية - جاهز للمرحلة الثانية';
+      case AppConstants.FINAL_REJECTED:
+        return 'تم الرفض النهائي للملف';
+      case AppConstants.WEBSITE_APPROVED:
+        return 'تمت الموافقة للنشر على الموقع';
+      default:
+        return 'في انتظار الإجراء التالي';
+    }
+  }
+
+  String _getResponsibleRole(String status) {
+    switch (status) {
+      case AppConstants.INCOMING:
+      case AppConstants.SECRETARY_REVIEW:
+        return 'سكرتير التحرير';
+      case AppConstants.EDITOR_REVIEW:
+        return 'مدير التحرير';
+      case AppConstants.HEAD_REVIEW:
+        return 'رئيس التحرير';
+      default:
+        return '';
+    }
+  }
+
+  void _showActionDialog(BuildContext context, Map<String, dynamic> action) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => ActionWithAttachmentDialog(
+        title: action['title'],
+        description: action['description'],
+        action: action['action'],
+        requiresAttachment: action['requiresAttachment'] ?? false,
+        requiresComment: action['requiresComment'] ?? false,
+        color: action['color'],
+        onConfirm: (comment, fileUrl, fileName) {
+          Navigator.pop(dialogContext);
+
+          // Get next status based on action
+          String nextStatus =
+              AppConstants.getNextStatus(status, action['action'], '');
+
+          // Call the onStatusUpdate with the next status
+          onStatusUpdate(nextStatus, comment, fileUrl, fileName);
+        },
+      ),
+    );
+  }
+
+  bool _isPrivilegedUser(dynamic currentUser) {
+    if (currentUser?.position == null) return false;
+    return currentUser.position == AppConstants.POSITION_HEAD_EDITOR ||
+        currentUser.position == AppConstants.POSITION_MANAGING_EDITOR;
+  }
+}
+
+// Dialog for Stage 1 actions with attachment support
+class ActionWithAttachmentDialog extends StatefulWidget {
+  final String title;
+  final String description;
+  final String action;
+  final bool requiresAttachment;
+  final bool requiresComment;
+  final Color color;
+  final Function(String?, String?, String?)
+      onConfirm; // comment, fileUrl, fileName
+
+  const ActionWithAttachmentDialog({
+    Key? key,
+    required this.title,
+    required this.description,
+    required this.action,
+    required this.requiresAttachment,
+    required this.requiresComment,
+    required this.color,
+    required this.onConfirm,
+  }) : super(key: key);
+
+  @override
+  _ActionWithAttachmentDialogState createState() =>
+      _ActionWithAttachmentDialogState();
+}
+
+class _ActionWithAttachmentDialogState
+    extends State<ActionWithAttachmentDialog> {
+  final TextEditingController _commentController = TextEditingController();
+  String? _attachedFileUrl;
+  String? _attachedFileName;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
             children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onManageReviewers,
-                  icon: Icon(Icons.edit, size: 16),
-                  label: Text('تعديل المحكمين', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade600,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                  ),
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: widget.color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Icon(Icons.assignment, color: widget.color, size: 20),
               ),
-              SizedBox(width: 8),
+              SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () =>
-                      onStatusUpdate('تم التحكيم', 'إنهاء التحكيم إدارياً'),
-                  icon: Icon(Icons.check_circle, size: 16),
-                  label: Text('إنهاء التحكيم', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                  ),
+                child: Text(
+                  widget.title,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  // Check if user is privileged (head of editors or editor chief)
-  bool _isPrivilegedUser(dynamic currentUser) {
-    if (currentUser?.position == null) return false;
-    return currentUser.position == 'رئيس التحرير' ||
-        currentUser.position == 'مدير التحرير';
-  }
-
-  Widget _buildAcceptRejectButton() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      decoration: AppStyles.gradientButtonDecoration(
-        AppStyles.primaryColor,
-        AppStyles.secondaryColor,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onAcceptReject,
-        icon: Icon(Icons.assignment_turned_in, color: Colors.white, size: 24),
-        label: Text(
-          'قبول / رفض الملف',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 20)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAssignReviewersButton() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      decoration: AppStyles.gradientButtonDecoration(
-        Colors.blue.shade500,
-        Colors.blue.shade700,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onAssignReviewers,
-        icon: Icon(Icons.person_add, color: Colors.white, size: 24),
-        label: Text(
-          'تعيين المحكمين',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 20)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReviewerApprovalButton() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      decoration: AppStyles.gradientButtonDecoration(
-        Colors.green.shade500,
-        Colors.green.shade700,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onReviewerApproval,
-        icon: Icon(Icons.thumb_up, color: Colors.white, size: 24),
-        label: Text(
-          'الموافقة والتعليق',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 20)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFinalApprovalButton() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      decoration: AppStyles.gradientButtonDecoration(
-        Colors.purple.shade500,
-        Colors.purple.shade700,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onFinalApproval,
-        icon: Icon(Icons.send, color: Colors.white, size: 24),
-        label: Text(
-          'موافقة مدير التحرير',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 20)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeadOfEditorsApprovalButton() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      decoration: AppStyles.gradientButtonDecoration(
-        Colors.indigo.shade500,
-        Colors.purple.shade600,
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onHeadOfEditorsApproval,
-        icon: Icon(Icons.verified_user, color: Colors.white, size: 24),
-        label: Text(
-          'الموافقة النهائية',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        style: AppStyles.transparentButtonStyle.copyWith(
-          padding:
-              MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 20)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAlreadyApprovedCard() {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-      decoration: AppStyles.successCardDecoration,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.check_circle, color: Colors.green, size: 24),
-          ),
-          SizedBox(width: 12),
+          SizedBox(height: 8),
           Text(
-            'تمت موافقتك على المستند',
-            style: TextStyle(
-              color: Colors.green.shade700,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            widget.description,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildWaitingForApprovalCard(String message) {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-      decoration: AppStyles.warningCardDecoration,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(8),
+          // Comment field
+          Text('تعليق${widget.requiresComment ? ' (مطلوب)' : ' (اختياري)'}:'),
+          SizedBox(height: 8),
+          TextField(
+            controller: _commentController,
+            decoration: InputDecoration(
+              hintText: 'اكتب تعليقك أو مبررات القرار هنا...',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Icon(Icons.hourglass_top, color: Colors.orange, size: 24),
+            maxLines: 3,
+            textAlign: TextAlign.right,
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: Colors.orange.shade700,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+
+          // File attachment section
+          if (widget.requiresAttachment || widget.action != 'start_review') ...[
+            SizedBox(height: 16),
+            Text(
+                'إرفاق مستند${widget.requiresAttachment ? ' (مطلوب)' : ' (اختياري)'}:'),
+            SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              height: 50,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
               ),
-              textAlign: TextAlign.center,
+              child: InkWell(
+                onTap: _pickFile,
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(12),
+                      child:
+                          Icon(Icons.attach_file, color: Colors.grey.shade600),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _attachedFileName ??
+                            'اختر ملف للإرفاق (تقرير المراجعة)',
+                        style: TextStyle(
+                          color: _attachedFileName != null
+                              ? Colors.black
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    if (_attachedFileName != null)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _attachedFileName = null;
+                            _attachedFileUrl = null;
+                          });
+                        },
+                        icon: Icon(Icons.close, color: Colors.red),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
+            if (widget.requiresAttachment)
+              Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'يجب إرفاق مستند يوضح مبررات القرار ونتائج المراجعة',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
-    );
-  }
-
-  Widget _buildCompletedCard(String message, MaterialColor color) {
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.symmetric(vertical: 20),
-      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.shade50, color.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('إلغاء'),
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.shade300, width: 2),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _getIconForColor(color),
-              color: color,
-              size: 24,
-            ),
+        ElevatedButton(
+          onPressed: () {
+            // Validation
+            if (widget.requiresComment &&
+                _commentController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('الرجاء إدخال تعليق')),
+              );
+              return;
+            }
+
+            if (widget.requiresAttachment && _attachedFileName == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('الرجاء إرفاق مستند')),
+              );
+              return;
+            }
+
+            widget.onConfirm(
+              _commentController.text.trim().isEmpty
+                  ? null
+                  : _commentController.text.trim(),
+              _attachedFileUrl,
+              _attachedFileName,
+            );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.color,
+            foregroundColor: Colors.white,
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: color.shade700,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
+          child: Text('تأكيد'),
+        ),
+      ],
     );
   }
 
-  // Helper method to get appropriate icon based on color
-  IconData _getIconForColor(MaterialColor color) {
-    if (color == Colors.green) {
-      return Icons.verified;
-    } else if (color == Colors.orange) {
-      return Icons.edit;
-    } else if (color == Colors.red) {
-      return Icons.cancel;
-    } else {
-      return Icons.info;
-    }
-  }
-
-  bool _isCurrentUserReviewer(dynamic currentUser) {
-    if (currentUser == null) return false;
-
-    for (var reviewer in document.reviewers) {
-      if (reviewer.userId == currentUser.id ||
-          reviewer.email == currentUser.email ||
-          reviewer.name == currentUser.name) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool _hasCurrentUserApproved(dynamic currentUser) {
-    if (currentUser == null) return false;
-
-    for (var reviewer in document.reviewers) {
-      if ((reviewer.userId == currentUser.id ||
-              reviewer.email == currentUser.email ||
-              reviewer.name == currentUser.name) &&
-          reviewer.reviewStatus == 'Approved') {
-        return true;
-      }
-    }
-    return false;
+  void _pickFile() {
+    // Placeholder for file picker implementation
+    // In a real app, you would use file_picker package
+    setState(() {
+      _attachedFileName =
+          'تقرير_مراجعة_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      _attachedFileUrl = 'https://example.com/files/${_attachedFileName}';
+    });
   }
 }

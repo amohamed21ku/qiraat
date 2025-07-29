@@ -1,4 +1,4 @@
-// widgets/status_progress_bar.dart
+// widgets/status_progress_bar.dart - Updated for Stage 1 Approval Workflow
 import 'package:flutter/material.dart';
 import '../Constants/App_Constants.dart';
 
@@ -9,8 +9,9 @@ class StatusProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = _getWorkflowSteps();
+    final steps = _getStage1WorkflowSteps();
     int currentStepIndex = _getCurrentStepIndex(status);
+    bool isCompleted = AppStyles.isStage1FinalStatus(status);
 
     return Container(
       padding: EdgeInsets.all(24),
@@ -18,15 +19,19 @@ class StatusProgressBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
+          _buildHeader(isCompleted),
           SizedBox(height: 24),
-          _buildProgressSteps(steps, currentStepIndex),
+          _buildProgressSteps(steps, currentStepIndex, isCompleted),
+          if (isCompleted) ...[
+            SizedBox(height: 20),
+            _buildCompletionStatus(status),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isCompleted) {
     return Row(
       children: [
         Container(
@@ -42,7 +47,11 @@ class StatusProgressBar extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(Icons.timeline, color: AppStyles.primaryColor, size: 24),
+          child: Icon(
+            isCompleted ? Icons.check_circle : Icons.timeline,
+            color: AppStyles.primaryColor,
+            size: 24,
+          ),
         ),
         SizedBox(width: 16),
         Expanded(
@@ -50,7 +59,7 @@ class StatusProgressBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'مسار المقال الأكاديمي',
+                'المرحلة الأولى: الموافقة',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -59,7 +68,9 @@ class StatusProgressBar extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                'المرحلة الحالية: $status',
+                isCompleted
+                    ? 'تم الانتهاء من المرحلة الأولى'
+                    : 'الحالة الحالية: ${AppStyles.getStatusDisplayName(status)}',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade600,
@@ -68,79 +79,90 @@ class StatusProgressBar extends StatelessWidget {
             ],
           ),
         ),
+        if (isCompleted)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade400, Colors.green.shade600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'مكتملة',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
       ],
     );
   }
 
-  List<Map<String, dynamic>> _getWorkflowSteps() {
+  List<Map<String, dynamic>> _getStage1WorkflowSteps() {
     return [
       {
         'title': 'استلام المقال',
         'subtitle': 'ملف وارد',
         'icon': Icons.inbox,
-        'description': 'تم استلام المقال من المؤلف'
+        'description': 'تم استلام المقال من المؤلف',
+        'status': AppConstants.INCOMING,
       },
       {
         'title': 'مراجعة السكرتير',
         'subtitle': 'فحص أولي',
         'icon': Icons.assignment_ind,
-        'description': 'مراجعة التنسيق والمتطلبات الأساسية'
+        'description': 'مراجعة التنسيق والمتطلبات الأساسية',
+        'status': AppConstants.SECRETARY_REVIEW,
       },
       {
         'title': 'مراجعة مدير التحرير',
         'subtitle': 'تقييم المحتوى',
         'icon': Icons.supervisor_account,
-        'description': 'مراجعة الملاءمة والموضوع'
+        'description': 'مراجعة الملاءمة والموضوع',
+        'status': AppConstants.EDITOR_REVIEW,
       },
       {
         'title': 'مراجعة رئيس التحرير',
-        'subtitle': 'قرار أولي',
+        'subtitle': 'قرار نهائي',
         'icon': Icons.admin_panel_settings,
-        'description': 'اتخاذ قرار بالقبول أو الرفض'
+        'description': 'اتخاذ القرار النهائي للمرحلة الأولى',
+        'status': AppConstants.HEAD_REVIEW,
       },
       {
-        'title': 'التحكيم العلمي',
-        'subtitle': 'مراجعة الأقران',
-        'icon': Icons.people,
-        'description': 'تقييم من قبل المحكمين المتخصصين'
-      },
-      {
-        'title': 'التحرير اللغوي',
-        'subtitle': 'تدقيق لغوي',
-        'icon': Icons.spellcheck,
-        'description': 'مراجعة النحو والأسلوب'
-      },
-      {
-        'title': 'التصميم والإخراج',
-        'subtitle': 'التنسيق النهائي',
-        'icon': Icons.design_services,
-        'description': 'تجهيز التصميم النهائي'
-      },
-      {
-        'title': 'المراجعة النهائية',
-        'subtitle': 'فحص الجودة',
-        'icon': Icons.fact_check,
-        'description': 'مراجعة نهائية للجودة'
-      },
-      {
-        'title': 'الموافقة للنشر',
-        'subtitle': 'جاهز للنشر',
-        'icon': Icons.publish,
-        'description': 'الموافقة النهائية للنشر'
+        'title': 'انتهاء المرحلة الأولى',
+        'subtitle': 'قرار نهائي',
+        'icon': Icons.check_circle,
+        'description': 'تم اتخاذ القرار النهائي',
+        'status': 'completed',
       },
     ];
   }
 
   Widget _buildProgressSteps(
-      List<Map<String, dynamic>> steps, int currentStep) {
+      List<Map<String, dynamic>> steps, int currentStep, bool isCompleted) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: List.generate(steps.length, (index) {
-          final isCompleted = index < currentStep;
-          final isCurrent = index == currentStep;
-          final isActive = isCompleted || isCurrent;
+          final isStepCompleted =
+              index < currentStep || (isCompleted && index == steps.length - 1);
+          final isCurrent = index == currentStep && !isCompleted;
+          final isActive = isStepCompleted || isCurrent;
           final step = steps[index];
+
+          Color stepColor;
+          if (isStepCompleted) {
+            stepColor = Colors.green;
+          } else if (isCurrent) {
+            stepColor = AppStyles.primaryColor;
+          } else {
+            stepColor = Colors.grey;
+          }
 
           return Row(
             children: [
@@ -151,20 +173,20 @@ class StatusProgressBar extends StatelessWidget {
                     width: 60,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: isActive
-                          ? AppStyles.primaryColor
-                          : Colors.grey.shade300,
+                      color: isActive ? stepColor : Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
                         color: isCurrent
                             ? AppStyles.secondaryColor
-                            : Colors.transparent,
+                            : isStepCompleted
+                                ? Colors.green.shade700
+                                : Colors.transparent,
                         width: 3,
                       ),
                       boxShadow: isActive
                           ? [
                               BoxShadow(
-                                color: AppStyles.primaryColor.withOpacity(0.3),
+                                color: stepColor.withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: Offset(0, 4),
                               ),
@@ -172,9 +194,9 @@ class StatusProgressBar extends StatelessWidget {
                           : [],
                     ),
                     child: Icon(
-                      step['icon'] as IconData,
+                      isStepCompleted ? Icons.check : step['icon'] as IconData,
                       color: isActive ? Colors.white : Colors.grey.shade600,
-                      size: 24,
+                      size: isStepCompleted ? 28 : 24,
                     ),
                   ),
                   SizedBox(height: 12),
@@ -190,9 +212,7 @@ class StatusProgressBar extends StatelessWidget {
                             fontSize: 12,
                             fontWeight:
                                 isCurrent ? FontWeight.bold : FontWeight.w600,
-                            color: isActive
-                                ? AppStyles.primaryColor
-                                : Colors.grey.shade600,
+                            color: isActive ? stepColor : Colors.grey.shade600,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 2,
@@ -204,7 +224,7 @@ class StatusProgressBar extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 10,
                             color: isActive
-                                ? AppStyles.primaryColor.withOpacity(0.8)
+                                ? stepColor.withOpacity(0.8)
                                 : Colors.grey.shade500,
                           ),
                           textAlign: TextAlign.center,
@@ -231,6 +251,28 @@ class StatusProgressBar extends StatelessWidget {
                             ),
                           ),
                         ],
+                        if (isStepCompleted && index < steps.length - 1) ...[
+                          SizedBox(height: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              'مكتملة',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -244,8 +286,8 @@ class StatusProgressBar extends StatelessWidget {
                   height: 3,
                   margin: EdgeInsets.only(bottom: 80),
                   decoration: BoxDecoration(
-                    color: index < currentStep
-                        ? AppStyles.primaryColor
+                    color: index < currentStep || isCompleted
+                        ? Colors.green
                         : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
                   ),
@@ -257,35 +299,153 @@ class StatusProgressBar extends StatelessWidget {
     );
   }
 
-  int _getCurrentStepIndex(String status) {
-    // Map status to workflow step index
+  Widget _buildCompletionStatus(String status) {
+    Color statusColor = AppStyles.getStatusColor(status);
+    IconData statusIcon = AppStyles.getStatusIcon(status);
+    String statusMessage = _getCompletionMessage(status);
+    String nextStepMessage = _getNextStepMessage(status);
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            statusColor.withOpacity(0.1),
+            statusColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 2),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(statusIcon, color: statusColor, size: 28),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'نتيجة المرحلة الأولى',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      AppStyles.getStatusDisplayName(status),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusMessage,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xff2d3748),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (nextStepMessage.isNotEmpty) ...[
+                  SizedBox(height: 8),
+                  Text(
+                    nextStepMessage,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getCompletionMessage(String status) {
     switch (status) {
-      case 'ملف وارد':
+      case AppConstants.STAGE1_APPROVED:
+        return 'تمت الموافقة النهائية على المقال للانتقال للمرحلة الثانية (التحكيم).';
+      case AppConstants.FINAL_REJECTED:
+        return 'تم رفض المقال نهائياً من قبل رئيس التحرير.';
+      case AppConstants.WEBSITE_APPROVED:
+        return 'تمت الموافقة على نشر المقال على الموقع الإلكتروني فقط.';
+      default:
+        return 'تم الانتهاء من المرحلة الأولى.';
+    }
+  }
+
+  String _getNextStepMessage(String status) {
+    switch (status) {
+      case AppConstants.STAGE1_APPROVED:
+        return 'الخطوة التالية: سيتم الانتقال للمرحلة الثانية (التحكيم العلمي).';
+      case AppConstants.FINAL_REJECTED:
+        return 'سيتم إشعار المؤلف بقرار الرفض مع توضيح الأسباب.';
+      case AppConstants.WEBSITE_APPROVED:
+        return 'سيتم التواصل مع المؤلف للحصول على موافقته لنشر المقال على الموقع.';
+      default:
+        return '';
+    }
+  }
+
+  int _getCurrentStepIndex(String status) {
+    // Map status to workflow step index for Stage 1
+    switch (status) {
+      case AppConstants.INCOMING:
         return 0;
-      case 'مراجعة السكرتير':
+      case AppConstants.SECRETARY_REVIEW:
         return 1;
-      case 'مراجعة مدير التحرير':
+      case AppConstants.SECRETARY_APPROVED:
+      case AppConstants.SECRETARY_REJECTED:
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
+        return 2; // Moving to editor review
+      case AppConstants.EDITOR_REVIEW:
         return 2;
-      case 'مراجعة رئيس التحرير':
+      case AppConstants.EDITOR_APPROVED:
+      case AppConstants.EDITOR_REJECTED:
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+        return 3; // Moving to head review
+      case AppConstants.HEAD_REVIEW:
         return 3;
-      case 'الي المحكمين':
-      case 'تم التحكيم':
-        return 4;
-      case 'التحرير اللغوي':
-        return 5;
-      case 'التصميم والإخراج':
-      case 'المراجعة الأولى للإخراج':
-      case 'مراجعة رئيس التحرير للإخراج':
-        return 6;
-      case 'المراجعة النهائية':
-      case 'التعديلات النهائية':
-        return 7;
-      case 'الموافقة النهائية للنشر':
-        return 8;
-      case 'مرفوض نهائياً':
-      case 'مرفوض لعدم الملاءمة':
-      case 'مرسل للموقع':
-        return -1; // Special case for rejected/alternative outcomes
+      case AppConstants.STAGE1_APPROVED:
+      case AppConstants.FINAL_REJECTED:
+      case AppConstants.WEBSITE_APPROVED:
+        return 4; // Completed
       default:
         return 0;
     }
