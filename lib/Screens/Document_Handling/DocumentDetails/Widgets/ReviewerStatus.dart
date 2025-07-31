@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../Constants/App_Constants.dart';
 import '../models/document_model.dart';
+import '../models/reviewerModel.dart';
 
 class ReviewersStatusWidget extends StatelessWidget {
   final List<ReviewerModel> reviewers;

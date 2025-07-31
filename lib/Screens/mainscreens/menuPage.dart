@@ -1,9 +1,12 @@
-// menuPage.dart - Updated for All Stages Workflow Dashboard
+// menuPage.dart - Updated with complete Stage 2 workflow integration
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../stage1/Stage1DocumentsPage.dart';
+import '../../stage2/stage2Reviewer_taskpage.dart';
+import '../../stage2/stage2documetspage.dart';
+import '../../stage2/stage2reviewerDashboard.dart';
 import '../Document_Handling/DocumentDetails/Services/Document_Services.dart';
 import '../Document_Handling/DocumentDetails/Constants/App_Constants.dart';
 import '../Document_Handling/Sent_documents.dart';
@@ -116,10 +119,62 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   // Load All Stages workflow statistics
   Future<void> _loadAllStagesStatistics() async {
     try {
-      // final statistics = await _documentService.getAllStagesStatistics();
+      // Get Stage 1 statistics
+      final stage1Stats = <String, int>{};
+      for (String status in AppConstants.stage1Statuses) {
+        final count = await _getDocumentCountByStatus(status);
+        stage1Stats[status] = count;
+      }
+
+      // Get Stage 2 statistics
+      final stage2Stats = <String, int>{};
+      for (String status in AppConstants.stage2Statuses) {
+        final count = await _getDocumentCountByStatus(status);
+        stage2Stats[status] = count;
+      }
+
+      // Calculate metrics
+      final stage1Total =
+          stage1Stats.values.fold<int>(0, (sum, count) => sum + count);
+      final stage1InProgress = stage1Stats[AppConstants.INCOMING]! +
+          stage1Stats[AppConstants.SECRETARY_REVIEW]! +
+          stage1Stats[AppConstants.EDITOR_REVIEW]! +
+          stage1Stats[AppConstants.HEAD_REVIEW]!;
+      final stage1Completed = stage1Stats[AppConstants.STAGE1_APPROVED]! +
+          stage1Stats[AppConstants.FINAL_REJECTED]! +
+          stage1Stats[AppConstants.WEBSITE_APPROVED]!;
+
+      final stage2Total =
+          stage2Stats.values.fold<int>(0, (sum, count) => sum + count);
+      final stage2InProgress = stage2Stats[AppConstants.REVIEWERS_ASSIGNED]! +
+          stage2Stats[AppConstants.UNDER_PEER_REVIEW]! +
+          stage2Stats[AppConstants.PEER_REVIEW_COMPLETED]! +
+          stage2Stats[AppConstants.HEAD_REVIEW_STAGE2]!;
+      final stage2Completed = stage2Stats[AppConstants.STAGE2_APPROVED]! +
+          stage2Stats[AppConstants.STAGE2_REJECTED]! +
+          stage2Stats[AppConstants.STAGE2_EDIT_REQUESTED]! +
+          stage2Stats[AppConstants.STAGE2_WEBSITE_APPROVED]!;
+
       if (mounted) {
         setState(() {
-          // allStagesStatistics = statistics;
+          allStagesStatistics = {
+            'stage1_metrics': {
+              'total': stage1Total,
+              'in_progress': stage1InProgress,
+              'completed': stage1Completed,
+            },
+            'stage2_metrics': {
+              'total': stage2Total,
+              'in_progress': stage2InProgress,
+              'completed': stage2Completed,
+            },
+            'stage3_metrics': {
+              'total': 0,
+              'in_progress': 0,
+              'completed': 0,
+            },
+            'ready_to_publish': stage2Stats[AppConstants.STAGE2_APPROVED] ?? 0,
+          };
         });
       }
     } catch (e) {
@@ -127,18 +182,34 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<int> _getDocumentCountByStatus(String status) async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('sent_documents')
+          .where('status', isEqualTo: status)
+          .get();
+      return querySnapshot.docs.length;
+    } catch (e) {
+      print('Error getting document count for status $status: $e');
+      return 0;
+    }
+  }
+
   void navigateToStageFiles(int stage) {
     if (stage == 1) {
-      // Navigate to the new comprehensive Stage 1 page
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => Stage1DocumentsPage()),
       );
+    } else if (stage == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Stage2DocumentsPage()),
+      );
     } else {
-      // Keep existing functionality for other stages
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('ملفات المرحلة $stage'),
+          content: Text('ملفات المرحلة $stage - قريباً'),
           backgroundColor: Color(0xff4299e1),
           behavior: SnackBarBehavior.floating,
         ),
@@ -148,16 +219,13 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
 
   // Navigate to ready to publish files
   void navigateToReadyToPublishFiles() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('الملفات الجاهزة للنشر'),
-        backgroundColor: Color(0xff48bb78),
-        behavior: SnackBarBehavior.floating,
-      ),
+    // For now, show Stage 2 approved documents
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => Stage2DocumentsPage()),
     );
   }
 
-  // Navigate to the appropriate tasks page based on the user's position
   void navigateToTasksPage() {
     if (position == AppConstants.POSITION_SECRETARY) {
       Navigator.push(
@@ -174,13 +242,15 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
         context,
         MaterialPageRoute(builder: (context) => Stage1HeadEditorTasksPage()),
       );
-    } else if (position.contains('محكم')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('مهام المحكمين ستكون متاحة في المرحلة الثانية'),
-          backgroundColor: Colors.blue.shade600,
-          behavior: SnackBarBehavior.floating,
-        ),
+    } else if (position.contains('محكم') ||
+        position == AppConstants.POSITION_REVIEWER ||
+        position == AppConstants.REVIEWER_POLITICAL ||
+        position == AppConstants.REVIEWER_ECONOMIC ||
+        position == AppConstants.REVIEWER_SOCIAL ||
+        position == AppConstants.REVIEWER_GENERAL) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Stage2ReviewerDashboard()),
       );
     } else if (position == AppConstants.POSITION_LANGUAGE_EDITOR) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -286,7 +356,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
               return SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Header Section - Removed Profile Picture
+                    // Header Section
                     Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(
@@ -373,7 +443,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                           SizedBox(
                               height: isDesktop ? 50 : (isSmall ? 30 : 40)),
 
-                          // User welcome section - No profile picture
+                          // User welcome section
                           Column(
                             children: [
                               Text(
@@ -438,75 +508,6 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                       ),
                     ),
 
-                    // All Stages Statistics Section
-                    if (allStagesStatistics.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        margin: EdgeInsets.all(isDesktop ? 80 : 20),
-                        padding: EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 20,
-                              offset: Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Color(0xffa86418),
-                                        Color(0xffcc9657),
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(Icons.analytics_outlined,
-                                      color: Colors.white, size: 28),
-                                ),
-                                SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'إحصائيات جميع المراحل',
-                                        style: TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xff2d3748),
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'نظرة شاملة على سير العمل في جميع مراحل النشر',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 24),
-                            _buildAllStagesStatisticsGrid(isDesktop, isTablet),
-                          ],
-                        ),
-                      ),
-
                     // Main Actions Section
                     Container(
                       width: double.infinity,
@@ -533,7 +534,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                           ),
                           SizedBox(height: isSmall ? 16 : 24),
 
-                          // Enhanced Grid layout for action cards - More rectangular and organized
+                          // Enhanced Grid layout for action cards
                           LayoutBuilder(
                             builder: (context, constraints) {
                               // Priority actions (top row)
@@ -577,16 +578,16 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                                       Color(0xffe53e3e)
                                     ],
                                     onTap: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              IncomingFilesPage(),
-                                        ),
-                                      );
-                                      if (result == true) {
-                                        _loadIncomingFilesCount();
-                                      }
+                                      // final result = await Navigator.push(
+                                      //   context,
+                                      //   MaterialPageRoute(
+                                      //     builder: (context) =>
+                                      //         IncomingFilesPage(),
+                                      //   ),
+                                      // );
+                                      // if (result == true) {
+                                      //   _loadIncomingFilesCount();
+                                      // }
                                     },
                                     notificationCount: incomingFilesCount,
                                   ),
@@ -606,7 +607,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                                 ),
                                 RectangularActionCard(
                                   title: "ملفات المرحلة 2",
-                                  subtitle: "التحكيم والمراجعة",
+                                  subtitle: "التحكيم والمراجعة العلمية",
                                   icon: Icons.filter_2,
                                   gradient: [
                                     Color(0xffed8936),
@@ -795,7 +796,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
       },
       {
         'title': 'المرحلة 2',
-        'subtitle': 'التحكيم',
+        'subtitle': 'التحكيم العلمي',
         'value': '${stage2Metrics['in_progress'] ?? 0}',
         'total': '${stage2Metrics['total'] ?? 0}',
         'icon': Icons.filter_2,
@@ -913,7 +914,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   }
 }
 
-// Rectangular Action Card Widget - More rectangular with expanded hover area
+// Rectangular Action Card Widget (unchanged from original)
 class RectangularActionCard extends StatefulWidget {
   final String title;
   final String subtitle;

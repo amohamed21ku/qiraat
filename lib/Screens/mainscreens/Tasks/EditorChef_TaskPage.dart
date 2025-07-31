@@ -720,7 +720,7 @@ class _EditorChiefTasksPageState extends State<EditorChiefTasksPage>
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('sent_documents')
-          .where('status', isEqualTo: status)
+          .where('status', whereIn: AppConstants.stage2Statuses)
           .orderBy('timestamp', descending: false)
           .snapshots(),
       builder: (context, snapshot) {

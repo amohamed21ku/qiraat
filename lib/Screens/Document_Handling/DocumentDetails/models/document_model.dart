@@ -1,5 +1,6 @@
 // models/document_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:qiraat/Screens/Document_Handling/DocumentDetails/models/reviewerModel.dart';
 
 class DocumentModel {
   final String id;
@@ -98,52 +99,6 @@ class DocumentModel {
   }
 }
 
-class ReviewerModel {
-  final String userId;
-  final String name;
-  final String email;
-  final String position;
-  final String reviewStatus;
-  final String? comment;
-  final DateTime? assignedDate;
-
-  ReviewerModel({
-    required this.userId,
-    required this.name,
-    required this.email,
-    required this.position,
-    required this.reviewStatus,
-    this.comment,
-    this.assignedDate,
-  });
-
-  factory ReviewerModel.fromMap(Map<String, dynamic> map) {
-    return ReviewerModel(
-      userId: map['userId'] ?? '',
-      name: map['name'] ?? '',
-      email: map['email'] ?? '',
-      position: map['position'] ?? '',
-      reviewStatus: map['review_status'] ?? 'Pending',
-      comment: map['comment'],
-      assignedDate: map['assigned_date'] != null
-          ? (map['assigned_date'] as Timestamp).toDate()
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'userId': userId,
-      'name': name,
-      'email': email,
-      'position': position,
-      'review_status': reviewStatus,
-      'comment': comment,
-      'assigned_date':
-          assignedDate != null ? Timestamp.fromDate(assignedDate!) : null,
-    };
-  }
-}
 // models/Actionlog_model.dart
 
 class ActionLogModel {

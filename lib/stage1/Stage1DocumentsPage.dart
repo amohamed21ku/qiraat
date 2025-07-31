@@ -1,10 +1,7 @@
 // pages/Stage1/Stage1DocumentsPage.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 
-import '../../Classes/current_user_providerr.dart';
 import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
 import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
