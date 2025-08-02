@@ -4,18 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../stage1/Stage1DocumentsPage.dart';
-import '../../stage2/stage2Reviewer_taskpage.dart';
 import '../../stage2/stage2documetspage.dart';
-import '../../stage2/stage2reviewerDashboard.dart';
+
 import '../Document_Handling/DocumentDetails/Services/Document_Services.dart';
 import '../Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Document_Handling/Sent_documents.dart';
+import '../Document_Handling/all_documents.dart';
 import '../Userspage.dart';
 import 'IncomingFilesScreen.dart';
 import 'SettingsPage.dart';
-import 'Tasks/Stage1_Editor_TaskPage.dart';
-import 'Tasks/Stage1_HeadEditor_TaskPage.dart';
-import 'Tasks/Stage1_Secreter_TaskPage.dart';
 
 class MenuPage extends StatefulWidget {
   @override
@@ -228,30 +224,30 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
 
   void navigateToTasksPage() {
     if (position == AppConstants.POSITION_SECRETARY) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => Stage1SecretaryTasksPage()),
-      );
-    } else if (position == AppConstants.POSITION_MANAGING_EDITOR) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => Stage1EditorTasksPage()),
-      );
-    } else if (position == AppConstants.POSITION_HEAD_EDITOR) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => Stage1HeadEditorTasksPage()),
-      );
+      //   Navigator.push(
+      //     context,
+      //     MaterialPageRoute(builder: (context) => Stage1SecretaryTasksPage()),
+      //   );
+      // } else if (position == AppConstants.POSITION_MANAGING_EDITOR) {
+      //   Navigator.push(
+      //     context,
+      //     MaterialPageRoute(builder: (context) => Stage1EditorTasksPage()),
+      //   );
+      // } else if (position == AppConstants.POSITION_HEAD_EDITOR) {
+      //   Navigator.push(
+      //     context,
+      //     MaterialPageRoute(builder: (context) => Stage1HeadEditorTasksPage()),
+      //   );
     } else if (position.contains('محكم') ||
         position == AppConstants.POSITION_REVIEWER ||
         position == AppConstants.REVIEWER_POLITICAL ||
         position == AppConstants.REVIEWER_ECONOMIC ||
         position == AppConstants.REVIEWER_SOCIAL ||
         position == AppConstants.REVIEWER_GENERAL) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => Stage2ReviewerDashboard()),
-      );
+      // Navigator.push(
+      //   context,
+      //   MaterialPageRoute(builder: (context) => Stage2ReviewerDashboard()),
+      // );
     } else if (position == AppConstants.POSITION_LANGUAGE_EDITOR) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -559,12 +555,13 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                                     Color(0xff319795)
                                   ],
                                   onTap: () {
+                                    print("hi");
+
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) =>
-                                            SentDocumentsPage(),
-                                      ),
+                                          builder: (context) =>
+                                              const AllDocumentsPage()),
                                     );
                                   },
                                 ),

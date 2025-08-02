@@ -2,6 +2,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import '../models/document_model.dart';
+
 class AppConstants {
   // Colors
   static const Color primaryColor = Color(0xffa86418);
@@ -28,6 +30,9 @@ class AppConstants {
   static const String UNDER_PEER_REVIEW = 'under_peer_review';
   static const String PEER_REVIEW_COMPLETED = 'peer_review_completed';
   static const String HEAD_REVIEW_STAGE2 = 'head_review_stage2';
+  static const String LANGUAGE_EDITING_STAGE2 = 'language_editing_stage2';
+  static const String LANGUAGE_EDITOR_COMPLETED = 'language_editor_completed';
+  static const String CHEF_REVIEW_LANGUAGE_EDIT = 'chef_review_language_edit';
   static const String STAGE2_APPROVED = 'stage2_approved';
   static const String STAGE2_REJECTED = 'stage2_rejected';
   static const String STAGE2_EDIT_REQUESTED = 'stage2_edit_requested';
@@ -70,6 +75,9 @@ class AppConstants {
     UNDER_PEER_REVIEW,
     PEER_REVIEW_COMPLETED,
     HEAD_REVIEW_STAGE2,
+    LANGUAGE_EDITING_STAGE2,
+    LANGUAGE_EDITOR_COMPLETED,
+    CHEF_REVIEW_LANGUAGE_EDIT,
     STAGE2_APPROVED,
     STAGE2_REJECTED,
     STAGE2_EDIT_REQUESTED,
@@ -114,6 +122,9 @@ class AppConstants {
     UNDER_PEER_REVIEW: 'تحت التحكيم العلمي',
     PEER_REVIEW_COMPLETED: 'انتهى التحكيم العلمي',
     HEAD_REVIEW_STAGE2: 'مراجعة رئيس التحرير للتحكيم',
+    LANGUAGE_EDITING_STAGE2: 'التدقيق اللغوي',
+    LANGUAGE_EDITOR_COMPLETED: 'انتهى التدقيق اللغوي',
+    CHEF_REVIEW_LANGUAGE_EDIT: 'مراجعة مدير التحرير للتدقيق',
     STAGE2_APPROVED: 'موافق للمرحلة الثالثة',
     STAGE2_REJECTED: 'مرفوض بعد التحكيم',
     STAGE2_EDIT_REQUESTED: 'تعديل مطلوب بناءً على التحكيم',
@@ -133,7 +144,7 @@ class AppConstants {
       'مدير التحرير'; // Same as MANAGING_EDITOR but for clarity
   static const String POSITION_HEAD_EDITOR = 'رئيس التحرير';
   static const String POSITION_REVIEWER = 'محكم';
-  static const String POSITION_LANGUAGE_EDITOR = 'محرر لغوي';
+  static const String POSITION_LANGUAGE_EDITOR = 'مدقق لغوي';
   static const String POSITION_LAYOUT_DESIGNER = 'مصمم إخراج';
   static const String POSITION_FINAL_REVIEWER = 'مراجع نهائي';
   static const String POSITION_AUTHOR = 'مؤلف';
@@ -162,6 +173,16 @@ class AppConstants {
   static const String ACTION_STAGE2_REJECT = 'stage2_reject';
   static const String ACTION_STAGE2_EDIT_REQUEST = 'stage2_edit_request';
   static const String ACTION_STAGE2_WEBSITE_APPROVE = 'stage2_website_approve';
+
+  // New Action Types for Language Editor workflow
+  static const String ACTION_SEND_TO_LANGUAGE_EDITOR =
+      'send_to_language_editor';
+  static const String ACTION_COMPLETE_LANGUAGE_EDITING =
+      'complete_language_editing';
+  static const String ACTION_CHEF_APPROVE_LANGUAGE_EDIT =
+      'chef_approve_language_edit';
+  static const String ACTION_CHEF_REJECT_LANGUAGE_EDIT =
+      'chef_reject_language_edit';
 
   // Reviewer Status
   static const String REVIEWER_STATUS_PENDING = 'Pending';
@@ -221,7 +242,7 @@ class AppConstants {
     ];
   }
 
-  // Stage 2 Workflow Progress Steps
+  // Updated Stage 2 Workflow Progress Steps
   static List<Map<String, dynamic>> getStage2WorkflowSteps() {
     return [
       {
@@ -259,10 +280,35 @@ class AppConstants {
       {
         'status': HEAD_REVIEW_STAGE2,
         'title': 'مراجعة رئيس التحرير',
-        'subtitle': 'القرار النهائي',
+        'subtitle': 'مراجعة نتائج التحكيم',
         'icon': Icons.admin_panel_settings,
-        'description': 'مراجعة نتائج التحكيم واتخاذ القرار النهائي',
+        'description': 'مراجعة نتائج التحكيم',
         'responsibleRole': 'رئيس التحرير',
+      },
+      // NEW STEPS
+      {
+        'status': LANGUAGE_EDITING_STAGE2,
+        'title': 'التدقيق اللغوي',
+        'subtitle': 'مراجعة لغوية وأسلوبية',
+        'icon': Icons.spellcheck,
+        'description': 'المدقق اللغوي يراجع اللغة والأسلوب',
+        'responsibleRole': 'المدقق اللغوي',
+      },
+      {
+        'status': LANGUAGE_EDITOR_COMPLETED,
+        'title': 'انتهى التدقيق اللغوي',
+        'subtitle': 'اكتمال المراجعة اللغوية',
+        'icon': Icons.check_circle_outline,
+        'description': 'انتهاء المراجعة اللغوية',
+        'responsibleRole': 'النظام',
+      },
+      {
+        'status': CHEF_REVIEW_LANGUAGE_EDIT,
+        'title': 'مراجعة مدير التحرير',
+        'subtitle': 'الموافقة على التدقيق اللغوي',
+        'icon': Icons.supervisor_account,
+        'description': 'مدير التحرير يراجع التدقيق اللغوي',
+        'responsibleRole': 'مدير التحرير',
       },
     ];
   }
@@ -327,50 +373,6 @@ class AppConstants {
     }
   }
 
-  // Get next status based on action for Stage 2
-  static String getStage2NextStatus(String currentStatus, String action) {
-    switch (currentStatus) {
-      case STAGE1_APPROVED:
-        if (action == ACTION_ASSIGN_REVIEWERS) {
-          return REVIEWERS_ASSIGNED;
-        }
-        return currentStatus;
-
-      case REVIEWERS_ASSIGNED:
-        if (action == ACTION_START_REVIEW) {
-          return UNDER_PEER_REVIEW;
-        }
-        return currentStatus;
-
-      case UNDER_PEER_REVIEW:
-        if (action == ACTION_COMPLETE_REVIEW) {
-          return PEER_REVIEW_COMPLETED;
-        }
-        return currentStatus;
-
-      case PEER_REVIEW_COMPLETED:
-        return HEAD_REVIEW_STAGE2;
-
-      case HEAD_REVIEW_STAGE2:
-        switch (action) {
-          case ACTION_STAGE2_APPROVE:
-            return STAGE2_APPROVED;
-          case ACTION_STAGE2_REJECT:
-            return STAGE2_REJECTED;
-          case ACTION_STAGE2_EDIT_REQUEST:
-            return STAGE2_EDIT_REQUESTED;
-          case ACTION_STAGE2_WEBSITE_APPROVE:
-            return STAGE2_WEBSITE_APPROVED;
-          default:
-            return currentStatus;
-        }
-
-      default:
-        return currentStatus;
-    }
-  }
-
-  // Get available actions for user and status
   static List<Map<String, dynamic>> getAvailableActions(
       String status, String userPosition) {
     List<Map<String, dynamic>> actions = [];
@@ -502,7 +504,6 @@ class AppConstants {
         }
         break;
 
-      // Stage 2 Actions
       case STAGE1_APPROVED:
         if (userPosition == POSITION_HEAD_EDITOR ||
             userPosition == POSITION_MANAGING_EDITOR ||
@@ -550,11 +551,21 @@ class AppConstants {
         }
         break;
 
+      case PEER_REVIEW_COMPLETED:
       case HEAD_REVIEW_STAGE2:
         if (userPosition == POSITION_HEAD_EDITOR ||
             userPosition == POSITION_MANAGING_EDITOR ||
             userPosition == POSITION_EDITOR_CHIEF) {
           actions.addAll([
+            {
+              'action': ACTION_SEND_TO_LANGUAGE_EDITOR,
+              'title': 'إرسال للتدقيق اللغوي',
+              'description': 'إرسال للمدقق اللغوي للمراجعة اللغوية',
+              'icon': Icons.spellcheck,
+              'color': Colors.blue,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
             {
               'action': ACTION_STAGE2_APPROVE,
               'title': 'الموافقة للمرحلة الثالثة',
@@ -589,6 +600,51 @@ class AppConstants {
               'icon': Icons.public,
               'color': Colors.blue,
               'requiresAttachment': true,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case LANGUAGE_EDITING_STAGE2:
+        if (userPosition == POSITION_LANGUAGE_EDITOR) {
+          actions.add({
+            'action': ACTION_COMPLETE_LANGUAGE_EDITING,
+            'title': 'إنهاء التدقيق اللغوي',
+            'description': 'إرسال المقال بعد التدقيق اللغوي',
+            'icon': Icons.send,
+            'color': Colors.green,
+            'requiresAttachment': true,
+            'requiresComment': true,
+          });
+        }
+        break;
+
+      case LANGUAGE_EDITOR_COMPLETED:
+        // Automatically transitions to CHEF_REVIEW_LANGUAGE_EDIT — no actions needed.
+        break;
+
+      case CHEF_REVIEW_LANGUAGE_EDIT:
+        if (userPosition == POSITION_MANAGING_EDITOR ||
+            userPosition == POSITION_EDITOR_CHIEF) {
+          actions.addAll([
+            {
+              'action': ACTION_CHEF_APPROVE_LANGUAGE_EDIT,
+              'title': 'الموافقة على التدقيق',
+              'description':
+                  'الموافقة على التدقيق اللغوي وإرساله لرئيس التحرير',
+              'icon': Icons.check_circle,
+              'color': Colors.green,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_CHEF_REJECT_LANGUAGE_EDIT,
+              'title': 'إعادة للتدقيق',
+              'description': 'إعادة المقال للمدقق اللغوي للمراجعة',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': false,
               'requiresComment': true,
             },
           ]);
@@ -829,6 +885,12 @@ class AppStyles {
         return Colors.purple.shade600;
       case AppConstants.HEAD_REVIEW_STAGE2:
         return Colors.indigo.shade600;
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        return Colors.green.shade600;
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        return Colors.green.shade700;
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return Colors.teal.shade600;
       case AppConstants.STAGE2_APPROVED:
         return Colors.green.shade700;
       case AppConstants.STAGE2_REJECTED:
@@ -840,6 +902,37 @@ class AppStyles {
       default:
         return Colors.grey.shade600;
     }
+  }
+
+  Map<String, dynamic> getStage2Progress(DocumentModel document) {
+    final steps = AppConstants.getStage2WorkflowSteps();
+    int currentStepIndex = -1;
+
+    for (int i = 0; i < steps.length; i++) {
+      if (steps[i]['status'] == document.status) {
+        currentStepIndex = i;
+        break;
+      }
+    }
+
+    if (currentStepIndex == -1) {
+      if (AppStyles.isStage2FinalStatus(document.status)) {
+        currentStepIndex = steps.length;
+      }
+    }
+
+    double progressPercentage =
+        currentStepIndex >= 0 ? (currentStepIndex + 1) / steps.length : 0.0;
+
+    return {
+      'currentStepIndex': currentStepIndex,
+      'totalSteps': steps.length,
+      'progressPercentage': progressPercentage,
+      'isCompleted': AppStyles.isStage2FinalStatus(document.status),
+      'currentStep': currentStepIndex >= 0 && currentStepIndex < steps.length
+          ? steps[currentStepIndex]
+          : null,
+    };
   }
 
   // Status Icons for Stage 1
@@ -889,6 +982,12 @@ class AppStyles {
         return Icons.check_circle;
       case AppConstants.HEAD_REVIEW_STAGE2:
         return Icons.admin_panel_settings;
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        return Icons.spellcheck;
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        return Icons.check_circle_outline;
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return Icons.supervisor_account;
       case AppConstants.STAGE2_APPROVED:
         return Icons.verified;
       case AppConstants.STAGE2_REJECTED:

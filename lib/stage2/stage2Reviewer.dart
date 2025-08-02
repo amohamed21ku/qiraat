@@ -106,6 +106,9 @@ class _Stage2ReviewerDetailsPageState extends State<Stage2ReviewerDetailsPage>
   void dispose() {
     _animationController.dispose();
     _reviewCommentController.dispose();
+    _strengthsController.dispose(); // Add this
+    _weaknessesController.dispose(); // Add this
+    _recommendationsController.dispose(); // Add this
     super.dispose();
   }
 
@@ -650,167 +653,416 @@ class _Stage2ReviewerDetailsPageState extends State<Stage2ReviewerDetailsPage>
     );
   }
 
+// Enhanced Reviewer Form - Update your _buildReviewForm method in stage2Reviewer.dart
+
   Widget _buildReviewForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Rating Section
-        Text(
-          'التقييم العام للمقال:',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.teal.shade700,
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.teal.shade200),
           ),
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: List.generate(5, (index) {
-            return GestureDetector(
-              onTap: () => setState(() => _selectedRating = index + 1),
-              child: Container(
-                margin: EdgeInsets.only(left: 8),
-                child: Icon(
-                  _selectedRating > index ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
-                  size: 32,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'التقييم العام للمقال:',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal.shade700,
                 ),
               ),
-            );
-          }),
-        ),
-        SizedBox(height: 8),
-        Text(
-          _getRatingDescription(_selectedRating),
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-            fontStyle: FontStyle.italic,
+              SizedBox(height: 12),
+              Row(
+                children: List.generate(5, (index) {
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedRating = index + 1),
+                    child: Container(
+                      margin: EdgeInsets.only(left: 8),
+                      child: Icon(
+                        _selectedRating > index
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: Colors.amber,
+                        size: 32,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              SizedBox(height: 8),
+              Text(
+                _getRatingDescription(_selectedRating),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ),
         ),
 
         SizedBox(height: 24),
 
         // Recommendation Section
-        Text(
-          'التوصية:',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.teal.shade700,
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'التوصية النهائية:',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+              SizedBox(height: 12),
+              ...['accept', 'minor_revision', 'major_revision', 'reject']
+                  .map((action) {
+                return Container(
+                  margin: EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: _recommendedAction == action
+                        ? Colors.blue.shade100
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _recommendedAction == action
+                          ? Colors.blue.shade300
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: RadioListTile<String>(
+                    title: Text(
+                      _getRecommendationText(action),
+                      style: TextStyle(
+                        fontWeight: _recommendedAction == action
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _getRecommendationDescription(action),
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: action,
+                    groupValue: _recommendedAction,
+                    onChanged: (value) =>
+                        setState(() => _recommendedAction = value!),
+                    activeColor: Colors.blue.shade600,
+                  ),
+                );
+              }),
+            ],
           ),
         ),
-        SizedBox(height: 12),
-        ...['accept', 'minor_revision', 'major_revision', 'reject']
-            .map((action) {
-          return RadioListTile<String>(
-            title: Text(_getRecommendationText(action)),
-            value: action,
-            groupValue: _recommendedAction,
-            onChanged: (value) => setState(() => _recommendedAction = value!),
-            activeColor: Colors.teal.shade600,
-          );
-        }),
 
         SizedBox(height: 24),
 
-        // Comments Section
-        Text(
-          'تعليقات وملاحظات التحكيم (مطلوب):',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.teal.shade700,
+        // Comments Section - Simplified
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.shade200),
           ),
-        ),
-        SizedBox(height: 8),
-        TextField(
-          controller: _reviewCommentController,
-          decoration: InputDecoration(
-            hintText:
-                'اكتب تقييمك المفصل للمقال، الملاحظات، والمقترحات للتحسين...',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            alignLabelWithHint: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.comment, color: Colors.orange.shade600, size: 20),
+                  SizedBox(width: 12),
+                  Text(
+                    'تعليقات التحكيم العامة (مطلوب):',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text(
+                'اكتب تقييمك الشامل للمقال، ملاحظاتك، ومقترحاتك للتحسين',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade600,
+                ),
+              ),
+              SizedBox(height: 12),
+              TextField(
+                controller: _reviewCommentController,
+                decoration: InputDecoration(
+                  hintText:
+                      'تعليقاتك الشاملة على المقال، تقييمك العام، ملاحظاتك، ومقترحاتك للتحسين...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.orange, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 8,
+                textAlign: TextAlign.right,
+              ),
+            ],
           ),
-          maxLines: 8,
-          textAlign: TextAlign.right,
         ),
 
         SizedBox(height: 24),
 
         // Action Buttons
         if (_currentReviewerInfo!.reviewStatus == 'Pending')
-          Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _startReview(),
-                  icon: Icon(Icons.play_arrow, size: 24),
-                  label: Text(
-                    'بدء المراجعة',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade600,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          )
+          _buildStartReviewButton()
         else
-          Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _canSubmitReview()
-                      ? () => _showSubmitReviewDialog()
-                      : null,
-                  icon: Icon(Icons.send, size: 24),
-                  label: Text(
-                    'إرسال التحكيم',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _saveAsDraft(),
-                  icon: Icon(Icons.save, size: 24),
-                  label: Text(
-                    'حفظ كمسودة',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.teal.shade600,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _buildSubmitReviewButtons(),
       ],
     );
   }
+
+  bool _canSubmitSimpleReview() {
+    return _selectedRating > 0 &&
+        _recommendedAction.isNotEmpty &&
+        _reviewCommentController.text.trim().isNotEmpty;
+  }
+
+  String _getRecommendationDescription(String action) {
+    switch (action) {
+      case 'accept':
+        return 'المقال جاهز للنشر بدون تعديلات';
+      case 'minor_revision':
+        return 'تعديلات طفيفة مطلوبة قبل النشر';
+      case 'major_revision':
+        return 'تعديلات كبيرة مطلوبة وإعادة مراجعة';
+      case 'reject':
+        return 'المقال غير مناسب للنشر';
+      default:
+        return '';
+    }
+  }
+
+// Update the submission dialog call:
+  void _showSimpleSubmitReviewDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => SimpleReviewSubmissionDialog(
+        rating: _selectedRating,
+        recommendation: _recommendedAction,
+        comment: _reviewCommentController.text.trim(),
+        onConfirm: (reviewData, fileUrl, fileName) =>
+            _submitSimpleReview(reviewData, fileUrl, fileName),
+      ),
+    );
+  }
+
+  Future<void> _submitDetailedReview(Map<String, dynamic> reviewData,
+      String? fileUrl, String? fileName) async {
+    setState(() => _isLoading = true);
+
+    try {
+      final detailedReviewData = {
+        ...reviewData,
+        'attachedFileUrl': fileUrl,
+        'attachedFileName': fileName,
+        'submittedAt': DateTime.now().toIso8601String(),
+      };
+
+      // Use the existing submitReviewerReview method for now
+      await _documentService.submitReviewerReview(
+        _document!.id,
+        _currentUserId!,
+        detailedReviewData,
+        _currentUserName!,
+      );
+
+      await _refreshDocument();
+      _showSuccessSnackBar('تم إرسال التحكيم المفصل بنجاح');
+    } catch (e) {
+      _showErrorSnackBar('خطأ في إرسال التحكيم: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveDetailedDraft() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final draftData = {
+        'rating': _selectedRating,
+        'recommendation': _recommendedAction,
+        'comment': _reviewCommentController.text.trim(),
+        'strengths': _strengthsController.text.trim(),
+        'weaknesses': _weaknessesController.text.trim(),
+        'recommendations': _recommendationsController.text.trim(),
+        'savedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _documentService.savereviewDraft(
+        _document!.id,
+        _currentUserId!,
+        draftData,
+      );
+
+      _showSuccessSnackBar('تم حفظ المراجعة المفصلة كمسودة');
+    } catch (e) {
+      _showErrorSnackBar('خطأ في حفظ المسودة: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildSubmitReviewButtons() {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _canSubmitSimpleReview()
+                ? () => _showSimpleSubmitReviewDialog()
+                : null,
+            icon: Icon(Icons.send, size: 24),
+            label: Text(
+              'إرسال التحكيم',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _saveSimpleDraft(),
+            icon: Icon(Icons.save, size: 24),
+            label: Text(
+              'حفظ كمسودة',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.teal.shade600,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+// Simplified submission method:
+  Future<void> _submitSimpleReview(Map<String, dynamic> reviewData,
+      String? fileUrl, String? fileName) async {
+    setState(() => _isLoading = true);
+
+    try {
+      final simpleReviewData = {
+        ...reviewData,
+        'attachedFileUrl': fileUrl,
+        'attachedFileName': fileName,
+        'submittedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _documentService.submitReviewerReview(
+        _document!.id,
+        _currentUserId!,
+        simpleReviewData,
+        _currentUserName!,
+      );
+
+      await _refreshDocument();
+      _showSuccessSnackBar('تم إرسال التحكيم بنجاح');
+    } catch (e) {
+      _showErrorSnackBar('خطأ في إرسال التحكيم: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+// Simplified draft saving:
+  Future<void> _saveSimpleDraft() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final draftData = {
+        'rating': _selectedRating,
+        'recommendation': _recommendedAction,
+        'comment': _reviewCommentController.text.trim(),
+        'savedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _documentService.savereviewDraft(
+        _document!.id,
+        _currentUserId!,
+        draftData,
+      );
+
+      _showSuccessSnackBar('تم حفظ المراجعة كمسودة');
+    } catch (e) {
+      _showErrorSnackBar('خطأ في حفظ المسودة: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildStartReviewButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _startReview(),
+        icon: Icon(Icons.play_arrow, size: 24),
+        label: Text(
+          'بدء المراجعة المفصلة',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue.shade600,
+          foregroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+// Add these controller declarations at the top of your class
+  final TextEditingController _strengthsController = TextEditingController();
+  final TextEditingController _weaknessesController = TextEditingController();
+  final TextEditingController _recommendationsController =
+      TextEditingController();
 
   Widget _buildCompletedReview() {
     if (_currentReviewerInfo == null ||
@@ -1189,19 +1441,6 @@ class _Stage2ReviewerDetailsPageState extends State<Stage2ReviewerDetailsPage>
     }
   }
 
-  void _showSubmitReviewDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => ReviewSubmissionDialog(
-        rating: _selectedRating,
-        recommendation: _recommendedAction,
-        comment: _reviewCommentController.text.trim(),
-        onConfirm: (comment, fileUrl, fileName) =>
-            _submitReview(comment, fileUrl, fileName),
-      ),
-    );
-  }
-
   Future<void> _submitReview(
       String comment, String? fileUrl, String? fileName) async {
     setState(() => _isLoading = true);
@@ -1342,14 +1581,14 @@ class _Stage2ReviewerDetailsPageState extends State<Stage2ReviewerDetailsPage>
   }
 }
 
-// Review Submission Dialog
-class ReviewSubmissionDialog extends StatefulWidget {
+// Simplified Review Submission Dialog
+class SimpleReviewSubmissionDialog extends StatefulWidget {
   final int rating;
   final String recommendation;
   final String comment;
-  final Function(String, String?, String?) onConfirm;
+  final Function(Map<String, dynamic>, String?, String?) onConfirm;
 
-  const ReviewSubmissionDialog({
+  const SimpleReviewSubmissionDialog({
     Key? key,
     required this.rating,
     required this.recommendation,
@@ -1358,10 +1597,12 @@ class ReviewSubmissionDialog extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ReviewSubmissionDialogState createState() => _ReviewSubmissionDialogState();
+  _SimpleReviewSubmissionDialogState createState() =>
+      _SimpleReviewSubmissionDialogState();
 }
 
-class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
+class _SimpleReviewSubmissionDialogState
+    extends State<SimpleReviewSubmissionDialog> {
   final TextEditingController _finalCommentController = TextEditingController();
   String? _attachedFileName;
   String? _attachedFileUrl;
@@ -1404,7 +1645,7 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
             SizedBox(height: 8),
             Text(
               'مراجعة نهائية لتحكيمك قبل الإرسال',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -1417,9 +1658,9 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
+                  color: Colors.teal[50],
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.teal.shade200),
+                  border: Border.all(color: Colors.teal[200]!),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1429,10 +1670,12 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.teal.shade700,
+                        color: Colors.teal[700],
                       ),
                     ),
                     SizedBox(height: 12),
+
+                    // Rating
                     Row(
                       children: [
                         Text('التقييم: ',
@@ -1450,6 +1693,8 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
                       ],
                     ),
                     SizedBox(height: 8),
+
+                    // Recommendation
                     Row(
                       children: [
                         Text('التوصية: ',
@@ -1469,7 +1714,7 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
               TextField(
                 controller: _finalCommentController,
                 decoration: InputDecoration(
-                  hintText: 'تعديل التعليقات النهائية إذا لزم الأمر...',
+                  hintText: 'تعديل أو إضافة تعليقات نهائية...',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
@@ -1486,7 +1731,7 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
                 width: double.infinity,
                 height: 50,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: InkWell(
@@ -1502,8 +1747,7 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Icon(Icons.attach_file,
-                                color: Colors.grey.shade600),
+                            : Icon(Icons.attach_file, color: Colors.grey[600]),
                       ),
                       Expanded(
                         child: Text(
@@ -1512,7 +1756,7 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
                           style: TextStyle(
                             color: _attachedFileName != null
                                 ? Colors.black
-                                : Colors.grey.shade600,
+                                : Colors.grey[600],
                           ),
                         ),
                       ),
@@ -1542,11 +1786,13 @@ class _ReviewSubmissionDialogState extends State<ReviewSubmissionDialog> {
             onPressed: _canConfirm()
                 ? () {
                     Navigator.pop(context);
+                    final reviewData = {
+                      'rating': widget.rating,
+                      'recommendation': widget.recommendation,
+                      'comment': _finalCommentController.text.trim(),
+                    };
                     widget.onConfirm(
-                      _finalCommentController.text.trim(),
-                      _attachedFileUrl,
-                      _attachedFileName,
-                    );
+                        reviewData, _attachedFileUrl, _attachedFileName);
                   }
                 : null,
             style: ElevatedButton.styleFrom(

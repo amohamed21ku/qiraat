@@ -1,10 +1,6 @@
-// Update your ReviewerModel class in document_model.dart with these additional properties
-// Make sure to import cloud_firestore for Timestamp:
-// import 'package:cloud_firestore/cloud_firestore.dart';
+// Enhanced ReviewerModel - update your existing reviewerModel.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import '../Constants/App_Constants.dart';
 
 class ReviewerModel {
   final String userId;
@@ -13,18 +9,20 @@ class ReviewerModel {
   final String position;
   final String reviewStatus;
   final DateTime? assignedDate;
-  final DateTime? reviewedDate;
-  final DateTime? submittedDate; // Added missing property
+  final DateTime? submittedDate;
   final String? comment;
-  final String? recommendation;
-  final double? rating; // Added missing property
-  final String? strengths; // Added for detailed feedback
-  final String? weaknesses; // Added for detailed feedback
-  final String? recommendations; // Added for recommendations
-  final String? attachedFileUrl; // Added for file attachments
-  final String? attachedFileName; // Added for file attachments
-  final Map<String, dynamic>?
-      reviewData; // Added for storing complete review data
+  final String? attachedFileUrl;
+  final String? attachedFileName;
+
+  // Enhanced review fields
+  final int? rating; // 1-5 stars
+  final String?
+      recommendation; // accept, minor_revision, major_revision, reject
+  final String? strengths; // Reviewer's assessment of paper strengths
+  final String? weaknesses; // Reviewer's assessment of paper weaknesses
+  final String? recommendations; // Reviewer's recommendations for improvement
+  final Map<String, dynamic>? reviewData; // Additional review data
+  final String? specialization; // Reviewer's area of specialization
 
   ReviewerModel({
     required this.userId,
@@ -33,20 +31,19 @@ class ReviewerModel {
     required this.position,
     required this.reviewStatus,
     required this.assignedDate,
-    this.reviewedDate,
     this.submittedDate,
     this.comment,
-    this.recommendation,
+    this.attachedFileUrl,
+    this.attachedFileName,
     this.rating,
+    this.recommendation,
     this.strengths,
     this.weaknesses,
     this.recommendations,
-    this.attachedFileUrl,
-    this.attachedFileName,
     this.reviewData,
+    this.specialization,
   });
 
-  // Convert to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
@@ -56,55 +53,49 @@ class ReviewerModel {
       'reviewStatus': reviewStatus,
       'assignedDate':
           assignedDate != null ? Timestamp.fromDate(assignedDate!) : null,
-      'reviewedDate':
-          reviewedDate != null ? Timestamp.fromDate(reviewedDate!) : null,
       'submittedDate':
           submittedDate != null ? Timestamp.fromDate(submittedDate!) : null,
       'comment': comment,
-      'recommendation': recommendation,
+      'attachedFileUrl': attachedFileUrl,
+      'attachedFileName': attachedFileName,
       'rating': rating,
+      'recommendation': recommendation,
       'strengths': strengths,
       'weaknesses': weaknesses,
       'recommendations': recommendations,
-      'attachedFileUrl': attachedFileUrl,
-      'attachedFileName': attachedFileName,
       'reviewData': reviewData,
+      'specialization': specialization,
     };
   }
 
-  // Create from Firestore data
   factory ReviewerModel.fromMap(Map<String, dynamic> map) {
     return ReviewerModel(
-      userId: map['userId']?.toString() ?? '',
-      name: map['name']?.toString() ?? '',
-      email: map['email']?.toString() ?? '',
-      position: map['position']?.toString() ?? '',
-      reviewStatus: map['reviewStatus']?.toString() ??
-          AppConstants.REVIEWER_STATUS_PENDING,
-      assignedDate: map['assignedDate'] is Timestamp
+      userId: map['userId'] ?? '',
+      name: map['name'] ?? '',
+      email: map['email'] ?? '',
+      position: map['position'] ?? '',
+      reviewStatus: map['reviewStatus'] ?? '',
+      assignedDate: map['assignedDate'] != null
           ? (map['assignedDate'] as Timestamp).toDate()
           : null,
-      reviewedDate: map['reviewedDate'] is Timestamp
-          ? (map['reviewedDate'] as Timestamp).toDate()
-          : null,
-      submittedDate: map['submittedDate'] is Timestamp
+      submittedDate: map['submittedDate'] != null
           ? (map['submittedDate'] as Timestamp).toDate()
           : null,
-      comment: map['comment']?.toString(),
-      recommendation: map['recommendation']?.toString(),
-      rating: map['rating'] != null
-          ? double.tryParse(map['rating'].toString())
+      comment: map['comment'],
+      attachedFileUrl: map['attachedFileUrl'],
+      attachedFileName: map['attachedFileName'],
+      rating: map['rating'] != null ? (map['rating'] as num).toInt() : null,
+      recommendation: map['recommendation'],
+      strengths: map['strengths'],
+      weaknesses: map['weaknesses'],
+      recommendations: map['recommendations'],
+      reviewData: map['reviewData'] != null
+          ? Map<String, dynamic>.from(map['reviewData'])
           : null,
-      strengths: map['strengths']?.toString(),
-      weaknesses: map['weaknesses']?.toString(),
-      recommendations: map['recommendations']?.toString(),
-      attachedFileUrl: map['attachedFileUrl']?.toString(),
-      attachedFileName: map['attachedFileName']?.toString(),
-      reviewData: map['reviewData'] as Map<String, dynamic>?,
+      specialization: map['specialization'],
     );
   }
 
-  // Create a copy with updated values
   ReviewerModel copyWith({
     String? userId,
     String? name,
@@ -112,17 +103,17 @@ class ReviewerModel {
     String? position,
     String? reviewStatus,
     DateTime? assignedDate,
-    DateTime? reviewedDate,
     DateTime? submittedDate,
     String? comment,
+    String? attachedFileUrl,
+    String? attachedFileName,
+    int? rating,
     String? recommendation,
-    double? rating,
     String? strengths,
     String? weaknesses,
     String? recommendations,
-    String? attachedFileUrl,
-    String? attachedFileName,
     Map<String, dynamic>? reviewData,
+    String? specialization,
   }) {
     return ReviewerModel(
       userId: userId ?? this.userId,
@@ -131,38 +122,124 @@ class ReviewerModel {
       position: position ?? this.position,
       reviewStatus: reviewStatus ?? this.reviewStatus,
       assignedDate: assignedDate ?? this.assignedDate,
-      reviewedDate: reviewedDate ?? this.reviewedDate,
       submittedDate: submittedDate ?? this.submittedDate,
       comment: comment ?? this.comment,
-      recommendation: recommendation ?? this.recommendation,
+      attachedFileUrl: attachedFileUrl ?? this.attachedFileUrl,
+      attachedFileName: attachedFileName ?? this.attachedFileName,
       rating: rating ?? this.rating,
+      recommendation: recommendation ?? this.recommendation,
       strengths: strengths ?? this.strengths,
       weaknesses: weaknesses ?? this.weaknesses,
       recommendations: recommendations ?? this.recommendations,
-      attachedFileUrl: attachedFileUrl ?? this.attachedFileUrl,
-      attachedFileName: attachedFileName ?? this.attachedFileName,
       reviewData: reviewData ?? this.reviewData,
+      specialization: specialization ?? this.specialization,
     );
   }
 
   @override
   String toString() {
-    return 'ReviewerModel(userId: $userId, name: $name, reviewStatus: $reviewStatus, rating: $rating)';
+    return 'ReviewerModel(userId: $userId, name: $name, reviewStatus: $reviewStatus, rating: $rating, recommendation: $recommendation)';
+  }
+}
+
+// Helper class for review analytics
+class ReviewAnalytics {
+  final List<ReviewerModel> reviews;
+
+  ReviewAnalytics(this.reviews);
+
+  double get averageRating {
+    final ratings = reviews
+        .where((r) => r.rating != null && r.rating! > 0)
+        .map((r) => r.rating!.toDouble())
+        .toList();
+
+    return ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
   }
 
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
+  Map<String, int> get recommendationCounts {
+    final counts = <String, int>{
+      'accept': 0,
+      'minor_revision': 0,
+      'major_revision': 0,
+      'reject': 0,
+    };
 
-    return other is ReviewerModel &&
-        other.userId == userId &&
-        other.name == name &&
-        other.email == email &&
-        other.position == position;
+    for (var review in reviews) {
+      final rec = review.recommendation ?? 'unknown';
+      if (counts.containsKey(rec)) {
+        counts[rec] = counts[rec]! + 1;
+      }
+    }
+
+    return counts;
   }
 
-  @override
-  int get hashCode {
-    return userId.hashCode ^ name.hashCode ^ email.hashCode ^ position.hashCode;
+  Map<int, int> get ratingDistribution {
+    final distribution = <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+
+    for (var review in reviews) {
+      if (review.rating != null && review.rating! > 0) {
+        distribution[review.rating!] = distribution[review.rating!]! + 1;
+      }
+    }
+
+    return distribution;
+  }
+
+  String get overallRecommendation {
+    final counts = recommendationCounts;
+    final total = counts.values.reduce((a, b) => a + b);
+
+    if (total == 0) return 'لا توجد توصيات';
+
+    // Calculate percentages
+    final acceptPercentage = (counts['accept']! / total * 100);
+    final rejectPercentage = (counts['reject']! / total * 100);
+    final majorRevisionPercentage = (counts['major_revision']! / total * 100);
+
+    if (acceptPercentage >= 60) {
+      return 'موصى بالقبول';
+    } else if (rejectPercentage >= 50) {
+      return 'موصى بالرفض';
+    } else if (majorRevisionPercentage >= 50) {
+      return 'يحتاج تعديلات كبيرة';
+    } else {
+      return 'آراء متباينة - يحتاج مراجعة دقيقة';
+    }
+  }
+
+  List<String> get commonStrengths {
+    final strengths = <String>[];
+    for (var review in reviews) {
+      if (review.strengths != null && review.strengths!.isNotEmpty) {
+        strengths.add(review.strengths!);
+      }
+    }
+    return strengths;
+  }
+
+  List<String> get commonWeaknesses {
+    final weaknesses = <String>[];
+    for (var review in reviews) {
+      if (review.weaknesses != null && review.weaknesses!.isNotEmpty) {
+        weaknesses.add(review.weaknesses!);
+      }
+    }
+    return weaknesses;
+  }
+
+  int get completedReviewsCount {
+    return reviews.where((r) => r.reviewStatus == 'Completed').length;
+  }
+
+  bool get isComplete {
+    return reviews.every((r) => r.reviewStatus == 'Completed');
+  }
+
+  String get completionStatus {
+    return '$completedReviewsCount من ${reviews.length}';
   }
 }

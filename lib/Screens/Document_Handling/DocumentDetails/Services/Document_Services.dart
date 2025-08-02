@@ -1,4 +1,4 @@
-// Services/Document_Services.dart - Updated with complete Stage 2 functionality
+// Services/Document_Services.dart - Fixed import conflicts and null safety issues
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,14 +6,284 @@ import 'package:path/path.dart' as path;
 
 import '../Constants/App_Constants.dart';
 import '../models/document_model.dart';
-import '../models/reviewerModel.dart';
+// Use alias to avoid conflicts
+import '../models/reviewerModel.dart' as ReviewerModelFile;
 
 class DocumentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Add this method to Document_Services.dart to automatically transition statuses
+
+  Future<void> submitReviewerReview(
+    String documentId,
+    String reviewerId,
+    Map<String, dynamic> reviewData,
+    String reviewerName,
+  ) async {
+    try {
+      if (documentId.isEmpty || reviewerId.isEmpty) {
+        throw Exception('Document ID and Reviewer ID cannot be empty');
+      }
+
+      final docSnapshot =
+          await _firestore.collection('sent_documents').doc(documentId).get();
+
+      if (!docSnapshot.exists) {
+        throw Exception('Document not found');
+      }
+
+      final data = docSnapshot.data() as Map<String, dynamic>;
+      List<dynamic> reviewers = List.from(data['reviewers'] ?? []);
+
+      if (reviewers.isEmpty) {
+        throw Exception('No reviewers found for this document');
+      }
+
+      bool reviewerFound = false;
+      bool allCompleted = true;
+
+      for (int i = 0; i < reviewers.length; i++) {
+        if (reviewers[i] is Map<String, dynamic>) {
+          final reviewer = reviewers[i] as Map<String, dynamic>;
+
+          if (reviewer['userId'] == reviewerId) {
+            String safeName = reviewerName.isNotEmpty
+                ? reviewerName
+                : (reviewer['name']?.toString().isNotEmpty == true
+                    ? reviewer['name']
+                    : 'Unknown Reviewer');
+
+            reviewers[i] = {
+              ...reviewer,
+              'name': safeName,
+              'reviewStatus': AppConstants.REVIEWER_STATUS_COMPLETED,
+              'rating': reviewData['rating'] ?? 0,
+              'recommendation': reviewData['recommendation'] ?? '',
+              'comment': reviewData['comment'] ?? '',
+              'attachedFileUrl': reviewData['attachedFileUrl'],
+              'attachedFileName': reviewData['attachedFileName'],
+              'submittedDate': Timestamp.now(),
+              'reviewData': reviewData,
+            };
+            reviewerFound = true;
+          }
+
+          if (reviewers[i]['reviewStatus'] !=
+              AppConstants.REVIEWER_STATUS_COMPLETED) {
+            allCompleted = false;
+          }
+        }
+      }
+
+      if (!reviewerFound) {
+        throw Exception('Reviewer not found in document');
+      }
+
+      final actionLog = ActionLogModel(
+        action: 'إرسال التحكيم النهائي',
+        userName: reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
+        userPosition: 'محكم',
+        performedById: reviewerId,
+        timestamp: DateTime.now(),
+        comment: reviewData['comment']?.toString() ?? '',
+        attachedFileUrl: reviewData['attachedFileUrl']?.toString(),
+        attachedFileName: reviewData['attachedFileName']?.toString(),
+      );
+
+      // FIXED: Proper status transition when all reviews are completed
+      String documentStatus = data['status'];
+      if (allCompleted) {
+        // Automatically transition to HEAD_REVIEW_STAGE2 instead of just PEER_REVIEW_COMPLETED
+        documentStatus = AppConstants.HEAD_REVIEW_STAGE2;
+      }
+
+      final updateData = <String, dynamic>{
+        'reviewers': reviewers,
+        'status': documentStatus,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy':
+            reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
+      };
+
+      if (allCompleted) {
+        updateData['allReviewsCompletedDate'] = FieldValue.serverTimestamp();
+        updateData['headReviewStage2StartDate'] = FieldValue.serverTimestamp();
+        updateData['currentStage'] = 'head_review_stage2';
+        updateData['readyForHeadReview'] = true;
+
+        // Add action log for automatic transition
+        final transitionActionLog = ActionLogModel(
+          action: 'انتهاء جميع المراجعات - انتقال تلقائي لمراجعة رئيس التحرير',
+          userName: 'النظام',
+          userPosition: 'تلقائي',
+          performedById: 'system',
+          timestamp: DateTime.now(),
+          comment:
+              'تم انتهاء جميع المحكمين من مراجعة المقال، انتقال تلقائي لمراجعة رئيس التحرير',
+        );
+
+        updateData['actionLog'] = FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]);
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Review submitted by $reviewerId successfully');
+      if (allCompleted) {
+        debugPrint(
+            'All reviews completed - transitioned to HEAD_REVIEW_STAGE2');
+      }
+    } catch (e) {
+      debugPrint('Error submitting reviewer review: $e');
+      rethrow;
+    }
+  }
+
+// NEW: Method to handle Chef Editor review of language editing
+  Future<void> submitChefEditorLanguageReview(
+    String documentId,
+    String chefEditorId,
+    String chefEditorName,
+    String decision, // 'approve' or 'reject'
+    String comment,
+  ) async {
+    try {
+      String nextStatus;
+      String actionDescription;
+
+      if (decision == 'approve') {
+        nextStatus = AppConstants
+            .HEAD_REVIEW_STAGE2; // Back to head editor for final decision
+        actionDescription = 'الموافقة على التدقيق اللغوي';
+      } else {
+        nextStatus =
+            AppConstants.LANGUAGE_EDITING_STAGE2; // Back to language editor
+        actionDescription = 'إعادة للتدقيق اللغوي';
+      }
+
+      final actionLog = ActionLogModel(
+        action: actionDescription,
+        userName: chefEditorName,
+        userPosition: AppConstants.POSITION_MANAGING_EDITOR,
+        performedById: chefEditorId,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      final updateData = <String, dynamic>{
+        'status': nextStatus,
+        'chefReviewLanguageEditDecision': decision,
+        'chefReviewLanguageEditDate': FieldValue.serverTimestamp(),
+        'chefReviewLanguageEditBy': chefEditorName,
+        'chefReviewLanguageEditById': chefEditorId,
+        'chefReviewLanguageEditComment': comment,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': chefEditorName,
+      };
+
+      if (decision == 'approve') {
+        updateData['languageEditingApproved'] = true;
+        updateData['readyForFinalDecision'] = true;
+        updateData['currentStage'] = 'head_review_stage2_final';
+      } else {
+        updateData['languageEditingApproved'] = false;
+        updateData['languageEditingRejectedReason'] = comment;
+        updateData['currentStage'] = 'language_editing_revision';
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Chef editor language review submitted: $decision');
+    } catch (e) {
+      debugPrint('Error submitting chef editor language review: $e');
+      rethrow;
+    }
+  }
+
+// Enhanced method to get documents for language editor with proper filtering
+  Future<List<DocumentModel>> getDocumentsForLanguageEditor() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', isEqualTo: AppConstants.LANGUAGE_EDITING_STAGE2)
+          .orderBy('languageEditingAssignedDate',
+              descending: false) // Oldest first (FIFO)
+          .get();
+
+      List<DocumentModel> documents =
+          snapshot.docs.map((doc) => DocumentModel.fromFirestore(doc)).toList();
+
+      debugPrint('Found ${documents.length} documents for language editor');
+      return documents;
+    } catch (e) {
+      debugPrint('Error fetching language editor documents: $e');
+      return [];
+    }
+  }
+
+// Enhanced method to get documents for chef editor language review
+  Future<List<DocumentModel>> getDocumentsForChefLanguageReview() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', isEqualTo: AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)
+          .orderBy('languageEditingCompletedDate', descending: false)
+          .get();
+
+      List<DocumentModel> documents =
+          snapshot.docs.map((doc) => DocumentModel.fromFirestore(doc)).toList();
+
+      debugPrint(
+          'Found ${documents.length} documents for chef language review');
+      return documents;
+    } catch (e) {
+      debugPrint('Error fetching chef language review documents: $e');
+      return [];
+    }
+  }
+
+  /// Get all documents across all stages
+  Future<List<Map<String, dynamic>>> getAllDocuments() async {
+    try {
+      final snapshot = await _firestore
+          .collection('sent_documents')
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      final documents = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'title': data['title'] ?? 'بدون عنوان',
+          'type': data['documentType'] ?? 'غير معروف',
+          'date': data['timestamp'] != null
+              ? (data['timestamp'] as Timestamp)
+                  .toDate()
+                  .toString()
+                  .split(' ')[0]
+              : 'لا يوجد تاريخ',
+          'url': data['documentUrl'],
+          'status': data['status'],
+        };
+      }).toList();
+
+      return documents;
+    } catch (e) {
+      debugPrint('Error fetching all documents: $e');
+      return [];
+    }
+  }
+
   // ==================== STAGE 1 METHODS ====================
 
-  // Add the missing streaming method for Stage 1 documents
   Stream<List<DocumentModel>> getStage1DocumentsStream() {
     try {
       return _firestore
@@ -32,7 +302,6 @@ class DocumentService {
     }
   }
 
-  // Optimized method to get all Stage 1 documents at once
   Future<List<DocumentModel>> getAllStage1Documents() async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -52,7 +321,68 @@ class DocumentService {
 
   // ==================== STAGE 2 METHODS ====================
 
-  // Stream for Stage 2 documents
+  // NEW: Get documents for Language Editor
+  // Future<List<DocumentModel>> getDocumentsForLanguageEditor() async {
+  //   try {
+  //     QuerySnapshot snapshot = await _firestore
+  //         .collection('sent_documents')
+  //         .where('status', isEqualTo: AppConstants.LANGUAGE_EDITING_STAGE2)
+  //         .orderBy('languageEditingAssignedDate',
+  //             descending: false) // Oldest first
+  //         .get();
+  //
+  //     return snapshot.docs
+  //         .map((doc) => DocumentModel.fromFirestore(doc))
+  //         .toList();
+  //   } catch (e) {
+  //     debugPrint('Error fetching language editor documents: $e');
+  //     return [];
+  //   }
+  // }
+
+  Future<void> submitLanguageEditorReview(
+    String documentId,
+    String languageEditorId,
+    String languageEditorName,
+    Map<String, dynamic> reviewData,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إنهاء التدقيق اللغوي',
+        userName: languageEditorName,
+        userPosition: AppConstants.POSITION_LANGUAGE_EDITOR,
+        performedById: languageEditorId,
+        timestamp: DateTime.now(),
+        comment: reviewData['comment'] ?? '',
+        attachedFileUrl: reviewData['attachedFileUrl'],
+        attachedFileName: reviewData['attachedFileName'],
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.LANGUAGE_EDITOR_COMPLETED,
+        'languageEditingCompletedDate': FieldValue.serverTimestamp(),
+        'languageEditingCompletedBy': languageEditorName,
+        'languageEditingCompletedById': languageEditorId,
+        'languageEditingData': {
+          'comment': reviewData['comment'],
+          'attachedFileUrl': reviewData['attachedFileUrl'],
+          'attachedFileName': reviewData['attachedFileName'],
+          'corrections': reviewData['corrections'] ?? '',
+          'suggestions': reviewData['suggestions'] ?? '',
+          'completedDate': Timestamp.now(),
+        },
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': languageEditorName,
+      });
+
+      debugPrint('Language editor review submitted successfully');
+    } catch (e) {
+      debugPrint('Error submitting language editor review: $e');
+      rethrow;
+    }
+  }
+
   Stream<List<DocumentModel>> getStage2DocumentsStream() {
     try {
       return _firestore
@@ -71,7 +401,6 @@ class DocumentService {
     }
   }
 
-  // Get all Stage 2 documents
   Future<List<DocumentModel>> getAllStage2Documents() async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -89,7 +418,6 @@ class DocumentService {
     }
   }
 
-  // Get documents ready for Stage 2 (approved in Stage 1)
   Future<List<DocumentModel>> getDocumentsReadyForStage2() async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -107,32 +435,25 @@ class DocumentService {
     }
   }
 
-// 1. Fixed getAvailableReviewers method with proper validation
-// Fixed getAvailableReviewers method in Document_Services.dart
   Future<List<Map<String, dynamic>>> getAvailableReviewers() async {
     try {
-      // Get all users first, then filter by position
       QuerySnapshot snapshot = await _firestore.collection('users').get();
-
       List<Map<String, dynamic>> reviewers = [];
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
-        // Get name from either 'name' or 'fullName' field
         String name =
             (data['name']?.toString() ?? data['fullName']?.toString() ?? '')
                 .trim();
         String email = (data['email']?.toString() ?? '').trim();
         String position = (data['position']?.toString() ?? '').trim();
 
-        // Skip if no name or email
         if (name.isEmpty || email.isEmpty) {
           debugPrint('Skipping user with missing data: ${doc.id}');
           continue;
         }
 
-        // Check if position contains reviewer-related keywords (more flexible)
         bool isReviewer = position.contains('محكم') ||
             position.contains('reviewer') ||
             position.contains('Reviewer') ||
@@ -143,7 +464,6 @@ class DocumentService {
             position == AppConstants.REVIEWER_GENERAL;
 
         if (isReviewer) {
-          // Determine specialization based on position
           String specialization = 'عام';
           if (position.contains('سياسي') || position.contains('Political')) {
             specialization = 'سياسي';
@@ -177,7 +497,6 @@ class DocumentService {
     }
   }
 
-// 2. Fixed assignReviewersToDocument with validation
   Future<void> assignReviewersToDocument(
     String documentId,
     List<Map<String, dynamic>> selectedReviewers,
@@ -186,7 +505,6 @@ class DocumentService {
     String assignedByPosition,
   ) async {
     try {
-      // Validate reviewer data before creating ReviewerModel
       final validatedReviewers = selectedReviewers.where((reviewer) {
         return reviewer['name'] != null &&
             reviewer['name'].toString().trim().isNotEmpty &&
@@ -198,8 +516,9 @@ class DocumentService {
         throw Exception('No valid reviewers found in selection');
       }
 
+      // Use the alias to create ReviewerModel instances
       final reviewers = validatedReviewers.map((reviewer) {
-        return ReviewerModel(
+        return ReviewerModelFile.ReviewerModel(
           userId: reviewer['userId']?.toString() ??
               reviewer['id']?.toString() ??
               '',
@@ -241,32 +560,12 @@ class DocumentService {
     }
   }
 
-//
-
-// 4. Add data validation helper method
-  Map<String, dynamic> _validateReviewerData(Map<String, dynamic> data) {
-    return {
-      'id': data['id']?.toString() ?? '',
-      'userId': data['userId']?.toString() ?? data['id']?.toString() ?? '',
-      'name': (data['name']?.toString() ?? '').trim(),
-      'email': (data['email']?.toString() ?? '').trim(),
-      'position': (data['position']?.toString() ?? '').trim(),
-      'specialization': (data['specialization']?.toString() ?? 'عام').trim(),
-      'isActive': data['isActive'] ?? true,
-      'reviewStatus': data['reviewStatus']?.toString() ??
-          AppConstants.REVIEWER_STATUS_PENDING,
-      'comment': data['comment']?.toString() ?? '',
-    };
-  }
-
-// 5. Enhanced getReviewerStatistics with safety checks
   Future<Map<String, dynamic>> getReviewerStatistics(String reviewerId) async {
     try {
       if (reviewerId.isEmpty) {
         return _getEmptyStatistics();
       }
 
-      // Get all documents where this reviewer is assigned
       final snapshot = await _firestore
           .collection('sent_documents')
           .where('reviewers', arrayContains: {'userId': reviewerId}).get();
@@ -345,7 +644,6 @@ class DocumentService {
     }
   }
 
-// 6. Helper method for empty statistics
   Map<String, dynamic> _getEmptyStatistics() {
     return {
       'total_assigned': 0,
@@ -358,115 +656,112 @@ class DocumentService {
     };
   }
 
-// 7. Enhanced submitReviewerReview with validation
-  Future<void> submitReviewerReview(
-    String documentId,
-    String reviewerId,
-    Map<String, dynamic> reviewData,
-    String reviewerName,
-  ) async {
-    try {
-      if (documentId.isEmpty || reviewerId.isEmpty) {
-        throw Exception('Document ID and Reviewer ID cannot be empty');
-      }
+  // Future<void> submitReviewerReview(
+  //   String documentId,
+  //   String reviewerId,
+  //   Map<String, dynamic> reviewData,
+  //   String reviewerName,
+  // ) async {
+  //   try {
+  //     if (documentId.isEmpty || reviewerId.isEmpty) {
+  //       throw Exception('Document ID and Reviewer ID cannot be empty');
+  //     }
+  //
+  //     final docSnapshot =
+  //         await _firestore.collection('sent_documents').doc(documentId).get();
+  //
+  //     if (!docSnapshot.exists) {
+  //       throw Exception('Document not found');
+  //     }
+  //
+  //     final data = docSnapshot.data() as Map<String, dynamic>;
+  //     List<dynamic> reviewers = List.from(data['reviewers'] ?? []);
+  //
+  //     if (reviewers.isEmpty) {
+  //       throw Exception('No reviewers found for this document');
+  //     }
+  //
+  //     bool reviewerFound = false;
+  //     bool allCompleted = true;
+  //
+  //     for (int i = 0; i < reviewers.length; i++) {
+  //       if (reviewers[i] is Map<String, dynamic>) {
+  //         final reviewer = reviewers[i] as Map<String, dynamic>;
+  //
+  //         if (reviewer['userId'] == reviewerId) {
+  //           String safeName = reviewerName.isNotEmpty
+  //               ? reviewerName
+  //               : (reviewer['name']?.toString().isNotEmpty == true
+  //                   ? reviewer['name']
+  //                   : 'Unknown Reviewer');
+  //
+  //           reviewers[i] = {
+  //             ...reviewer,
+  //             'name': safeName,
+  //             'reviewStatus': AppConstants.REVIEWER_STATUS_COMPLETED,
+  //             'rating': reviewData['rating'] ?? 0,
+  //             'recommendation': reviewData['recommendation'] ?? '',
+  //             'comment': reviewData['comment'] ?? '',
+  //             'attachedFileUrl': reviewData['attachedFileUrl'],
+  //             'attachedFileName': reviewData['attachedFileName'],
+  //             'submittedDate': Timestamp.now(),
+  //             'reviewData': reviewData,
+  //           };
+  //           reviewerFound = true;
+  //         }
+  //
+  //         if (reviewers[i]['reviewStatus'] !=
+  //             AppConstants.REVIEWER_STATUS_COMPLETED) {
+  //           allCompleted = false;
+  //         }
+  //       }
+  //     }
+  //
+  //     if (!reviewerFound) {
+  //       throw Exception('Reviewer not found in document');
+  //     }
+  //
+  //     final actionLog = ActionLogModel(
+  //       action: 'إرسال التحكيم النهائي',
+  //       userName: reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
+  //       userPosition: 'محكم',
+  //       performedById: reviewerId,
+  //       timestamp: DateTime.now(),
+  //       comment: reviewData['comment']?.toString() ?? '',
+  //       attachedFileUrl: reviewData['attachedFileUrl']?.toString(),
+  //       attachedFileName: reviewData['attachedFileName']?.toString(),
+  //     );
+  //
+  //     String documentStatus = data['status'];
+  //     if (allCompleted) {
+  //       documentStatus = AppConstants.PEER_REVIEW_COMPLETED;
+  //     }
+  //
+  //     final updateData = <String, dynamic>{
+  //       'reviewers': reviewers,
+  //       'status': documentStatus,
+  //       'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+  //       'lastUpdated': FieldValue.serverTimestamp(),
+  //       'lastUpdatedBy':
+  //           reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
+  //     };
+  //
+  //     if (allCompleted) {
+  //       updateData['allReviewsCompletedDate'] = FieldValue.serverTimestamp();
+  //     }
+  //
+  //     await _firestore
+  //         .collection('sent_documents')
+  //         .doc(documentId)
+  //         .update(updateData);
+  //
+  //     debugPrint('Review submitted by $reviewerId successfully');
+  //   } catch (e) {
+  //     debugPrint('Error submitting reviewer review: $e');
+  //     rethrow;
+  //   }
+  // }
 
-      final docSnapshot =
-          await _firestore.collection('sent_documents').doc(documentId).get();
-
-      if (!docSnapshot.exists) {
-        throw Exception('Document not found');
-      }
-
-      final data = docSnapshot.data() as Map<String, dynamic>;
-      List<dynamic> reviewers = List.from(data['reviewers'] ?? []);
-
-      if (reviewers.isEmpty) {
-        throw Exception('No reviewers found for this document');
-      }
-
-      bool reviewerFound = false;
-      bool allCompleted = true;
-
-      for (int i = 0; i < reviewers.length; i++) {
-        if (reviewers[i] is Map<String, dynamic>) {
-          final reviewer = reviewers[i] as Map<String, dynamic>;
-
-          if (reviewer['userId'] == reviewerId) {
-            // Ensure reviewer name is not empty
-            String safeName = reviewerName.isNotEmpty
-                ? reviewerName
-                : (reviewer['name']?.toString().isNotEmpty == true
-                    ? reviewer['name']
-                    : 'Unknown Reviewer');
-
-            reviewers[i] = {
-              ...reviewer,
-              'name': safeName, // Ensure name is set
-              'reviewStatus': AppConstants.REVIEWER_STATUS_COMPLETED,
-              'rating': reviewData['rating'] ?? 0,
-              'recommendation': reviewData['recommendation'] ?? '',
-              'comment': reviewData['comment'] ?? '',
-              'attachedFileUrl': reviewData['attachedFileUrl'],
-              'attachedFileName': reviewData['attachedFileName'],
-              'submittedDate': Timestamp.now(),
-              'reviewData': reviewData,
-            };
-            reviewerFound = true;
-          }
-
-          if (reviewers[i]['reviewStatus'] !=
-              AppConstants.REVIEWER_STATUS_COMPLETED) {
-            allCompleted = false;
-          }
-        }
-      }
-
-      if (!reviewerFound) {
-        throw Exception('Reviewer not found in document');
-      }
-
-      final actionLog = ActionLogModel(
-        action: 'إرسال التحكيم النهائي',
-        userName: reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
-        userPosition: 'محكم',
-        performedById: reviewerId,
-        timestamp: DateTime.now(),
-        comment: reviewData['comment']?.toString() ?? '',
-        attachedFileUrl: reviewData['attachedFileUrl']?.toString(),
-        attachedFileName: reviewData['attachedFileName']?.toString(),
-      );
-
-      String documentStatus = data['status'];
-      if (allCompleted) {
-        documentStatus = AppConstants.PEER_REVIEW_COMPLETED;
-      }
-
-      final updateData = <String, dynamic>{
-        'reviewers': reviewers,
-        'status': documentStatus,
-        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
-        'lastUpdated': FieldValue.serverTimestamp(),
-        'lastUpdatedBy':
-            reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
-      };
-
-      if (allCompleted) {
-        updateData['allReviewsCompletedDate'] = FieldValue.serverTimestamp();
-      }
-
-      await _firestore
-          .collection('sent_documents')
-          .doc(documentId)
-          .update(updateData);
-
-      debugPrint('Review submitted by $reviewerId successfully');
-    } catch (e) {
-      debugPrint('Error submitting reviewer review: $e');
-      rethrow;
-    }
-  }
-
-  // Save reviewer draft
   Future<void> savereviewDraft(
     String documentId,
     String reviewerId,
@@ -490,7 +785,6 @@ class DocumentService {
     }
   }
 
-  // Get reviewer draft
   Future<Map<String, dynamic>?> getReviewDraft(
     String documentId,
     String reviewerId,
@@ -512,18 +806,15 @@ class DocumentService {
     }
   }
 
-  // Get Stage 2 statistics
   Future<Map<String, dynamic>> getStage2Statistics() async {
     try {
       final statistics = <String, dynamic>{};
 
-      // Get counts for each Stage 2 status
       for (String status in AppConstants.stage2Statuses) {
         final count = await _getDocumentCountByStatus(status);
         statistics[status] = count;
       }
 
-      // Calculate Stage 2 workflow efficiency metrics
       final totalDocuments =
           statistics.values.fold<int>(0, (sum, count) => count + sum);
       final readyForReview = statistics[AppConstants.STAGE1_APPROVED] ?? 0;
@@ -563,9 +854,6 @@ class DocumentService {
     }
   }
 
-  // ====================Reviewer ================================
-
-  /// Update reviewer status with enhanced security
   Future<void> updateReviewerStatusSecure(
     String documentId,
     String reviewerId,
@@ -584,14 +872,12 @@ class DocumentService {
       final data = docSnapshot.data() as Map<String, dynamic>;
       List<dynamic> reviewers = List.from(data['reviewers'] ?? []);
 
-      // Verify that the reviewer is actually assigned to this document
       bool reviewerFound = false;
       for (int i = 0; i < reviewers.length; i++) {
         if (reviewers[i] is Map<String, dynamic>) {
           final reviewer = reviewers[i] as Map<String, dynamic>;
 
           if (reviewer['userId'] == reviewerId) {
-            // Verify the reviewer name matches (additional security)
             String storedName = reviewer['name']?.toString() ?? '';
             if (storedName != reviewerName) {
               throw Exception('Reviewer name mismatch - security violation');
@@ -613,7 +899,6 @@ class DocumentService {
         throw Exception('Reviewer not authorized for this document');
       }
 
-      // Check if all reviews are completed
       bool allCompleted = true;
       for (var reviewer in reviewers) {
         if (reviewer['reviewStatus'] !=
@@ -639,7 +924,6 @@ class DocumentService {
         'lastUpdatedBy': reviewerName,
       };
 
-      // Update document status if all reviews are completed
       if (allCompleted && newStatus == AppConstants.REVIEWER_STATUS_COMPLETED) {
         updateData['status'] = AppConstants.PEER_REVIEW_COMPLETED;
         updateData['allReviewsCompletedDate'] = FieldValue.serverTimestamp();
@@ -657,8 +941,10 @@ class DocumentService {
     }
   }
 
-  /// Submit reviewer review with enhanced validation
-  Future<void> submitReviewerReviewSecure(
+// Enhanced Document Service methods - Add these to your Document_Services.dart
+
+// Update the submitReviewerReview method to handle detailed review data
+  Future<void> submitReviewerReviewDetailed(
     String documentId,
     String reviewerId,
     Map<String, dynamic> reviewData,
@@ -669,9 +955,9 @@ class DocumentService {
         throw Exception('Document ID and Reviewer ID cannot be empty');
       }
 
-      // Validate review data
-      if (!_validateReviewData(reviewData)) {
-        throw Exception('Invalid review data provided');
+      // Validate detailed review data
+      if (!_validateDetailedReviewData(reviewData)) {
+        throw Exception('Invalid or incomplete review data provided');
       }
 
       final docSnapshot =
@@ -696,27 +982,45 @@ class DocumentService {
           final reviewer = reviewers[i] as Map<String, dynamic>;
 
           if (reviewer['userId'] == reviewerId) {
-            // Security check: verify reviewer name
-            String storedName = reviewer['name']?.toString() ?? '';
-            if (storedName != reviewerName) {
-              throw Exception('Reviewer authentication failed');
-            }
+            String safeName = reviewerName.isNotEmpty
+                ? reviewerName
+                : (reviewer['name']?.toString().isNotEmpty == true
+                    ? reviewer['name']
+                    : 'Unknown Reviewer');
 
-            // Ensure required fields are present
+            // Enhanced reviewer data with detailed review information
             reviewers[i] = {
               ...reviewer,
-              'name': reviewerName,
+              'name': safeName,
               'reviewStatus': AppConstants.REVIEWER_STATUS_COMPLETED,
+
+              // Core review data
               'rating': reviewData['rating'] ?? 0,
               'recommendation': reviewData['recommendation'] ?? '',
               'comment': reviewData['comment'] ?? '',
+
+              // Detailed review fields
               'strengths': reviewData['strengths'] ?? '',
               'weaknesses': reviewData['weaknesses'] ?? '',
               'recommendations': reviewData['recommendations'] ?? '',
+              'methodology_assessment':
+                  reviewData['methodology_assessment'] ?? '',
+              'originality_score': reviewData['originality_score'] ?? 0,
+              'clarity_score': reviewData['clarity_score'] ?? 0,
+              'significance_score': reviewData['significance_score'] ?? 0,
+
+              // File attachments
               'attachedFileUrl': reviewData['attachedFileUrl'],
               'attachedFileName': reviewData['attachedFileName'],
+
+              // Timestamps
               'submittedDate': Timestamp.now(),
               'reviewData': reviewData,
+
+              // Review completion metadata
+              'reviewDurationDays':
+                  _calculateReviewDuration(reviewer['assignedDate']),
+              'lastModified': Timestamp.now(),
             };
             reviewerFound = true;
           }
@@ -729,16 +1033,17 @@ class DocumentService {
       }
 
       if (!reviewerFound) {
-        throw Exception('Reviewer not authorized for this document');
+        throw Exception('Reviewer not found in document');
       }
 
+      // Create detailed action log entry
       final actionLog = ActionLogModel(
-        action: 'إرسال التحكيم النهائي',
-        userName: reviewerName,
+        action: 'إرسال التحكيم المفصل',
+        userName: reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
         userPosition: 'محكم',
         performedById: reviewerId,
         timestamp: DateTime.now(),
-        comment: reviewData['comment']?.toString() ?? '',
+        comment: _buildDetailedReviewSummary(reviewData),
         attachedFileUrl: reviewData['attachedFileUrl']?.toString(),
         attachedFileName: reviewData['attachedFileName']?.toString(),
       );
@@ -753,11 +1058,16 @@ class DocumentService {
         'status': documentStatus,
         'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
         'lastUpdated': FieldValue.serverTimestamp(),
-        'lastUpdatedBy': reviewerName,
+        'lastUpdatedBy':
+            reviewerName.isNotEmpty ? reviewerName : 'Unknown Reviewer',
+
+        // Add review completion statistics
+        'reviewStatistics': _calculateReviewStatistics(reviewers),
       };
 
       if (allCompleted) {
         updateData['allReviewsCompletedDate'] = FieldValue.serverTimestamp();
+        updateData['reviewSummary'] = _generateReviewSummary(reviewers);
       }
 
       await _firestore
@@ -765,23 +1075,22 @@ class DocumentService {
           .doc(documentId)
           .update(updateData);
 
-      debugPrint(
-          'Review submitted by $reviewerId successfully with security validation');
+      debugPrint('Detailed review submitted by $reviewerId successfully');
     } catch (e) {
-      debugPrint('Error submitting reviewer review securely: $e');
+      debugPrint('Error submitting detailed reviewer review: $e');
       rethrow;
     }
   }
 
-  /// Validate review data to ensure all required fields are present
-  bool _validateReviewData(Map<String, dynamic> reviewData) {
-    // Check for required fields
+// Validate detailed review data
+  bool _validateDetailedReviewData(Map<String, dynamic> reviewData) {
     final requiredFields = [
       'rating',
       'recommendation',
       'comment',
       'strengths',
-      'weaknesses'
+      'weaknesses',
+      'recommendations'
     ];
 
     for (String field in requiredFields) {
@@ -793,93 +1102,324 @@ class DocumentService {
       }
     }
 
-    // Validate rating is within acceptable range
     final rating = reviewData['rating'];
     if (rating is! num || rating < 1.0 || rating > 5.0) {
       debugPrint('Invalid rating value: $rating');
       return false;
     }
 
+    final validRecommendations = [
+      'accept',
+      'minor_revision',
+      'major_revision',
+      'reject'
+    ];
+    if (!validRecommendations.contains(reviewData['recommendation'])) {
+      debugPrint('Invalid recommendation: ${reviewData['recommendation']}');
+      return false;
+    }
+
     return true;
   }
 
-  /// Get reviewer statistics with privacy protection
-  Future<Map<String, dynamic>> getReviewerStatisticsSecure(
-      String reviewerId) async {
-    try {
-      if (reviewerId.isEmpty) {
-        return _getEmptyStatistics();
-      }
+// Calculate review duration
+  int _calculateReviewDuration(dynamic assignedDate) {
+    if (assignedDate == null) return 0;
 
-      // Get documents where this reviewer is assigned (without sensitive data)
-      final assignedDocuments = await getDocumentsForReviewer(reviewerId);
+    DateTime assigned;
+    if (assignedDate is Timestamp) {
+      assigned = assignedDate.toDate();
+    } else if (assignedDate is DateTime) {
+      assigned = assignedDate;
+    } else {
+      return 0;
+    }
 
-      int totalAssigned = assignedDocuments.length;
-      int completed = 0;
-      int pending = 0;
-      int inProgress = 0;
-      List<double> ratings = [];
-      int totalDays = 0;
+    return DateTime.now().difference(assigned).inDays;
+  }
 
-      for (final document in assignedDocuments) {
-        final reviewerData = document.reviewers.firstWhere(
-          (reviewer) => reviewer.userId == reviewerId,
-          orElse: () => ReviewerModel(
-            userId: '',
-            name: '',
-            email: '',
-            position: '',
-            reviewStatus: AppConstants.REVIEWER_STATUS_PENDING,
-            assignedDate: DateTime.now(),
-          ),
-        );
+// Build detailed review summary for action log
+  String _buildDetailedReviewSummary(Map<String, dynamic> reviewData) {
+    final rating = reviewData['rating'] ?? 0;
+    final recommendation = reviewData['recommendation'] ?? '';
+    final comment = reviewData['comment'] ?? '';
 
-        switch (reviewerData.reviewStatus) {
-          case AppConstants.REVIEWER_STATUS_COMPLETED:
-            completed++;
-            // Add rating if available
-            if (reviewerData.rating != null && reviewerData.rating! > 0) {
-              ratings.add(reviewerData.rating!.toDouble());
-            }
-            // Calculate review duration
-            if (reviewerData.assignedDate != null &&
-                reviewerData.submittedDate != null) {
-              totalDays += reviewerData.submittedDate!
-                  .difference(reviewerData.assignedDate!)
-                  .inDays;
-            }
-            break;
-          case AppConstants.REVIEWER_STATUS_IN_PROGRESS:
-            inProgress++;
-            break;
-          case AppConstants.REVIEWER_STATUS_PENDING:
-            pending++;
-            break;
-        }
-      }
+    String summary = 'التقييم: $rating/5 نجوم\n';
+    summary += 'التوصية: ${_getRecommendationTextArabic(recommendation)}\n';
 
-      final averageRating = ratings.isNotEmpty
-          ? ratings.reduce((a, b) => a + b) / ratings.length
-          : 0.0;
-      final averageDays = completed > 0 ? totalDays / completed : 0;
+    if (comment.length > 100) {
+      summary += 'التعليق: ${comment.substring(0, 100)}...\n';
+    } else {
+      summary += 'التعليق: $comment\n';
+    }
 
-      return {
-        'total_assigned': totalAssigned,
-        'completed': completed,
-        'pending': pending,
-        'in_progress': inProgress,
-        'completion_rate':
-            totalAssigned > 0 ? (completed / totalAssigned * 100).round() : 0,
-        'average_rating': averageRating.toStringAsFixed(1),
-        'average_review_days': averageDays.round(),
-      };
-    } catch (e) {
-      debugPrint('Error getting reviewer statistics securely: $e');
-      return _getEmptyStatistics();
+    return summary;
+  }
+
+// Get Arabic recommendation text
+  String _getRecommendationTextArabic(String recommendation) {
+    switch (recommendation) {
+      case 'accept':
+        return 'قبول للنشر';
+      case 'minor_revision':
+        return 'تعديلات طفيفة';
+      case 'major_revision':
+        return 'تعديلات كبيرة';
+      case 'reject':
+        return 'رفض النشر';
+      default:
+        return 'غير محدد';
     }
   }
 
-  /// Get documents assigned to a specific reviewer (secure method)
+// Calculate review statistics
+  Map<String, dynamic> _calculateReviewStatistics(List<dynamic> reviewers) {
+    final completedReviews = reviewers
+        .where(
+            (r) => r['reviewStatus'] == AppConstants.REVIEWER_STATUS_COMPLETED)
+        .toList();
+
+    if (completedReviews.isEmpty) {
+      return {
+        'total_reviewers': reviewers.length,
+        'completed_reviews': 0,
+        'average_rating': 0.0,
+        'recommendation_distribution': {},
+        'completion_rate': 0.0,
+      };
+    }
+
+    // Calculate average rating
+    final ratings = completedReviews
+        .where((r) => r['rating'] != null && r['rating'] > 0)
+        .map((r) => (r['rating'] as num).toDouble())
+        .toList();
+
+    final averageRating = ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
+
+    // Calculate recommendation distribution
+    final recommendations = <String, int>{
+      'accept': 0,
+      'minor_revision': 0,
+      'major_revision': 0,
+      'reject': 0,
+    };
+
+    for (var review in completedReviews) {
+      final rec = review['recommendation']?.toString() ?? '';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec] = recommendations[rec]! + 1;
+      }
+    }
+
+    return {
+      'total_reviewers': reviewers.length,
+      'completed_reviews': completedReviews.length,
+      'average_rating': averageRating,
+      'recommendation_distribution': recommendations,
+      'completion_rate': completedReviews.length / reviewers.length,
+      'last_updated': Timestamp.now(),
+    };
+  }
+
+// Generate comprehensive review summary
+  Map<String, dynamic> _generateReviewSummary(List<dynamic> reviewers) {
+    final completedReviews = reviewers
+        .where(
+            (r) => r['reviewStatus'] == AppConstants.REVIEWER_STATUS_COMPLETED)
+        .toList();
+
+    final statistics = _calculateReviewStatistics(reviewers);
+
+    // Collect common themes
+    final strengths = <String>[];
+    final weaknesses = <String>[];
+    final recommendations = <String>[];
+
+    for (var review in completedReviews) {
+      if (review['strengths'] != null &&
+          review['strengths'].toString().isNotEmpty) {
+        strengths.add(review['strengths'].toString());
+      }
+      if (review['weaknesses'] != null &&
+          review['weaknesses'].toString().isNotEmpty) {
+        weaknesses.add(review['weaknesses'].toString());
+      }
+      if (review['recommendations'] != null &&
+          review['recommendations'].toString().isNotEmpty) {
+        recommendations.add(review['recommendations'].toString());
+      }
+    }
+
+    // Generate overall recommendation
+    final recDistribution =
+        statistics['recommendation_distribution'] as Map<String, int>;
+    final totalRecs = recDistribution.values.reduce((a, b) => a + b);
+    String overallRecommendation = 'آراء متباينة';
+
+    if (totalRecs > 0) {
+      final acceptPercentage = (recDistribution['accept']! / totalRecs * 100);
+      final rejectPercentage = (recDistribution['reject']! / totalRecs * 100);
+
+      if (acceptPercentage >= 60) {
+        overallRecommendation = 'موصى بالقبول للنشر';
+      } else if (rejectPercentage >= 50) {
+        overallRecommendation = 'موصى بالرفض';
+      } else if (recDistribution['major_revision']! >= (totalRecs / 2)) {
+        overallRecommendation = 'يحتاج تعديلات كبيرة';
+      } else {
+        overallRecommendation = 'يحتاج مراجعة دقيقة - آراء متباينة';
+      }
+    }
+
+    return {
+      'statistics': statistics,
+      'overall_recommendation': overallRecommendation,
+      'common_strengths': strengths,
+      'common_weaknesses': weaknesses,
+      'improvement_recommendations': recommendations,
+      'generated_at': Timestamp.now(),
+      'summary_ready': true,
+    };
+  }
+
+// Get detailed review analytics for head editor
+  Future<Map<String, dynamic>> getDetailedReviewAnalytics(
+      String documentId) async {
+    try {
+      final docSnapshot =
+          await _firestore.collection('sent_documents').doc(documentId).get();
+
+      if (!docSnapshot.exists) {
+        throw Exception('Document not found');
+      }
+
+      final data = docSnapshot.data() as Map<String, dynamic>;
+      final reviewers = List<dynamic>.from(data['reviewers'] ?? []);
+
+      final completedReviews = reviewers
+          .where((r) =>
+              r['reviewStatus'] == AppConstants.REVIEWER_STATUS_COMPLETED)
+          .toList();
+
+      if (completedReviews.isEmpty) {
+        return {
+          'status': 'no_reviews',
+          'message': 'لا توجد مراجعات مكتملة',
+        };
+      }
+
+      // Get stored statistics or calculate them
+      Map<String, dynamic> analytics =
+          data['reviewStatistics'] ?? _calculateReviewStatistics(reviewers);
+
+      // Add additional analytics
+      analytics['detailed_reviews'] = completedReviews
+          .map((review) => {
+                'reviewer_name': review['name'],
+                'reviewer_position': review['position'],
+                'rating': review['rating'],
+                'recommendation': review['recommendation'],
+                'submission_date': review['submittedDate'],
+                'review_duration': review['reviewDurationDays'],
+                'has_attachments': review['attachedFileUrl'] != null,
+              })
+          .toList();
+
+      analytics['review_quality_metrics'] =
+          _calculateQualityMetrics(completedReviews);
+
+      return {
+        'status': 'success',
+        'analytics': analytics,
+        'summary': data['reviewSummary'],
+      };
+    } catch (e) {
+      debugPrint('Error getting detailed review analytics: $e');
+      return {
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+// Calculate review quality metrics
+  Map<String, dynamic> _calculateQualityMetrics(List<dynamic> reviews) {
+    if (reviews.isEmpty) return {};
+
+    int totalWords = 0;
+    int reviewsWithAttachments = 0;
+    List<int> durations = [];
+
+    for (var review in reviews) {
+      // Count words in comments, strengths, weaknesses, and recommendations
+      final comment = review['comment']?.toString() ?? '';
+      final strengths = review['strengths']?.toString() ?? '';
+      final weaknesses = review['weaknesses']?.toString() ?? '';
+      final recommendations = review['recommendations']?.toString() ?? '';
+
+      totalWords += comment.split(' ').length;
+      totalWords += strengths.split(' ').length;
+      totalWords += weaknesses.split(' ').length;
+      totalWords += recommendations.split(' ').length;
+
+      if (review['attachedFileUrl'] != null) {
+        reviewsWithAttachments++;
+      }
+
+      if (review['reviewDurationDays'] != null) {
+        durations.add(review['reviewDurationDays'] as int);
+      }
+    }
+
+    final averageWords = totalWords / reviews.length;
+    final attachmentRate = reviewsWithAttachments / reviews.length * 100;
+    final averageDuration = durations.isNotEmpty
+        ? durations.reduce((a, b) => a + b) / durations.length
+        : 0.0;
+
+    return {
+      'average_words_per_review': averageWords.round(),
+      'attachment_rate': attachmentRate.round(),
+      'average_review_duration_days': averageDuration.round(),
+      'quality_score': _calculateOverallQualityScore(
+          averageWords, attachmentRate, averageDuration),
+    };
+  }
+
+// Calculate overall quality score
+  double _calculateOverallQualityScore(
+      double avgWords, double attachmentRate, double avgDuration) {
+    double score = 0.0;
+
+    // Word count scoring (max 40 points)
+    if (avgWords >= 200)
+      score += 40;
+    else if (avgWords >= 100)
+      score += 30;
+    else if (avgWords >= 50)
+      score += 20;
+    else
+      score += 10;
+
+    // Attachment rate scoring (max 30 points)
+    score += (attachmentRate * 0.3);
+
+    // Duration scoring (max 30 points) - optimal is 7-14 days
+    if (avgDuration >= 7 && avgDuration <= 14)
+      score += 30;
+    else if (avgDuration >= 5 && avgDuration <= 21)
+      score += 20;
+    else if (avgDuration >= 3 && avgDuration <= 30)
+      score += 10;
+    else
+      score += 5;
+
+    return score.clamp(0.0, 100.0);
+  }
+
   Future<List<DocumentModel>> getDocumentsForReviewer(String reviewerId) async {
     try {
       final snapshot = await _firestore
@@ -895,25 +1435,21 @@ class DocumentService {
       for (final doc in snapshot.docs) {
         final docModel = DocumentModel.fromFirestore(doc);
 
-        // Check if the current user is assigned as a reviewer
         final isAssignedReviewer = docModel.reviewers.any(
           (reviewer) => reviewer.userId == reviewerId,
         );
 
         if (isAssignedReviewer) {
-          // Create a sanitized version of the document for the reviewer
-          // Remove sensitive information that reviewers shouldn't see
           final sanitizedDoc =
               _sanitizeDocumentForReviewer(docModel, reviewerId);
           assignedDocuments.add(sanitizedDoc);
         }
       }
 
-      // Sort by assignment date (most recent first)
       assignedDocuments.sort((a, b) {
         final aReviewer = a.reviewers.firstWhere(
           (reviewer) => reviewer.userId == reviewerId,
-          orElse: () => ReviewerModel(
+          orElse: () => ReviewerModelFile.ReviewerModel(
             userId: '',
             name: '',
             email: '',
@@ -925,7 +1461,7 @@ class DocumentService {
 
         final bReviewer = b.reviewers.firstWhere(
           (reviewer) => reviewer.userId == reviewerId,
-          orElse: () => ReviewerModel(
+          orElse: () => ReviewerModelFile.ReviewerModel(
             userId: '',
             name: '',
             email: '',
@@ -945,36 +1481,29 @@ class DocumentService {
     }
   }
 
-  /// Sanitize document data for reviewer view (remove sensitive information)
   DocumentModel _sanitizeDocumentForReviewer(
       DocumentModel document, String reviewerId) {
-    // Create a copy of reviewers list with only the current reviewer's data
     final currentReviewerData = document.reviewers
         .where((reviewer) => reviewer.userId == reviewerId)
         .toList();
 
-    // Remove sensitive action log entries that reviewers shouldn't see
     final sanitizedActionLog = document.actionLog
         .where((action) => _isActionVisibleToReviewer(action))
         .toList();
 
-    // Create sanitized document
     return DocumentModel(
       id: document.id,
-      documentUrl:
-          document.documentUrl, // Reviewers need access to the document
+      documentUrl: document.documentUrl,
       status: document.status,
       timestamp: document.timestamp,
-      reviewers: currentReviewerData, // Only their own reviewer data
-      actionLog: sanitizedActionLog, // Filtered action log
-      // Remove other sensitive fields
-      fullName: '', email: '', // Hide sender information
+      reviewers: currentReviewerData,
+      actionLog: sanitizedActionLog,
+      fullName: '',
+      email: '',
     );
   }
 
-  /// Check if an action log entry should be visible to reviewers
   bool _isActionVisibleToReviewer(ActionLogModel action) {
-    // Hide internal decisions and sensitive actions
     final hiddenActions = [
       'موافقة السكرتير',
       'رفض السكرتير',
@@ -990,7 +1519,6 @@ class DocumentService {
 
   // ==================== COMMON METHODS ====================
 
-  /// Update document status for any workflow stage
   Future<void> updateDocumentStatus(
     String documentId,
     String newStatus,
@@ -1026,7 +1554,6 @@ class DocumentService {
         'stage': AppStyles.getStageNumber(newStatus),
       };
 
-      // Add status-specific data and timestamps
       if (AppStyles.isStage1Status(newStatus)) {
         updateData.addAll(_getStage1StatusSpecificData(
             newStatus, userName, userId, userPosition));
@@ -1035,7 +1562,6 @@ class DocumentService {
             newStatus, userName, userId, userPosition));
       }
 
-      // Add any additional data
       if (additionalData != null) {
         updateData.addAll(additionalData);
       }
@@ -1053,9 +1579,7 @@ class DocumentService {
     }
   }
 
-  /// Get action description for all statuses
   String _getActionDescription(String status) {
-    // Stage 1 descriptions
     switch (status) {
       case AppConstants.SECRETARY_REVIEW:
         return 'بدء مراجعة السكرتير';
@@ -1083,8 +1607,6 @@ class DocumentService {
         return 'الرفض النهائي';
       case AppConstants.WEBSITE_APPROVED:
         return 'موافقة النشر على الموقع';
-
-      // Stage 2 descriptions
       case AppConstants.REVIEWERS_ASSIGNED:
         return 'تعيين المحكمين';
       case AppConstants.UNDER_PEER_REVIEW:
@@ -1093,6 +1615,13 @@ class DocumentService {
         return 'انتهاء التحكيم العلمي';
       case AppConstants.HEAD_REVIEW_STAGE2:
         return 'بدء مراجعة رئيس التحرير للتحكيم';
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        return 'إرسال للتدقيق اللغوي';
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        return 'انتهاء التدقيق اللغوي';
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return 'مراجعة مدير التحرير للتدقيق اللغوي';
+
       case AppConstants.STAGE2_APPROVED:
         return 'الموافقة للمرحلة الثالثة';
       case AppConstants.STAGE2_REJECTED:
@@ -1101,7 +1630,6 @@ class DocumentService {
         return 'طلب تعديل بناءً على التحكيم';
       case AppConstants.STAGE2_WEBSITE_APPROVED:
         return 'موافقة نشر الموقع بعد التحكيم';
-
       default:
         return 'تحديث الحالة';
     }
@@ -1120,7 +1648,6 @@ class DocumentService {
     }
   }
 
-  /// Get status-specific data for Stage 1 workflow
   Map<String, dynamic> _getStage1StatusSpecificData(
       String status, String userName, String userId, String userPosition) {
     final data = <String, dynamic>{};
@@ -1135,7 +1662,6 @@ class DocumentService {
           'currentStage': 'secretary_review',
         });
         break;
-
       case AppConstants.SECRETARY_APPROVED:
         data.addAll({
           'secretaryApprovalDate': timestamp,
@@ -1144,7 +1670,6 @@ class DocumentService {
           'secretaryDecision': 'approved',
         });
         break;
-
       case AppConstants.SECRETARY_REJECTED:
         data.addAll({
           'secretaryRejectionDate': timestamp,
@@ -1153,7 +1678,6 @@ class DocumentService {
           'secretaryDecision': 'rejected',
         });
         break;
-
       case AppConstants.SECRETARY_EDIT_REQUESTED:
         data.addAll({
           'secretaryEditRequestDate': timestamp,
@@ -1162,7 +1686,6 @@ class DocumentService {
           'secretaryDecision': 'edit_requested',
         });
         break;
-
       case AppConstants.EDITOR_REVIEW:
         data.addAll({
           'editorReviewStartDate': timestamp,
@@ -1171,7 +1694,6 @@ class DocumentService {
           'currentStage': 'editor_review',
         });
         break;
-
       case AppConstants.EDITOR_APPROVED:
         data.addAll({
           'editorApprovalDate': timestamp,
@@ -1180,7 +1702,6 @@ class DocumentService {
           'editorDecision': 'approved',
         });
         break;
-
       case AppConstants.EDITOR_REJECTED:
         data.addAll({
           'editorRejectionDate': timestamp,
@@ -1189,7 +1710,6 @@ class DocumentService {
           'editorDecision': 'rejected',
         });
         break;
-
       case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
         data.addAll({
           'editorWebsiteRecommendationDate': timestamp,
@@ -1198,7 +1718,6 @@ class DocumentService {
           'editorDecision': 'website_recommended',
         });
         break;
-
       case AppConstants.EDITOR_EDIT_REQUESTED:
         data.addAll({
           'editorEditRequestDate': timestamp,
@@ -1207,7 +1726,6 @@ class DocumentService {
           'editorDecision': 'edit_requested',
         });
         break;
-
       case AppConstants.HEAD_REVIEW:
         data.addAll({
           'headReviewStartDate': timestamp,
@@ -1216,7 +1734,6 @@ class DocumentService {
           'currentStage': 'head_review',
         });
         break;
-
       case AppConstants.STAGE1_APPROVED:
         data.addAll({
           'stage1CompletionDate': timestamp,
@@ -1227,7 +1744,6 @@ class DocumentService {
           'stage1Status': 'completed_approved',
         });
         break;
-
       case AppConstants.FINAL_REJECTED:
         data.addAll({
           'finalRejectionDate': timestamp,
@@ -1237,7 +1753,6 @@ class DocumentService {
           'stage1Status': 'completed_rejected',
         });
         break;
-
       case AppConstants.WEBSITE_APPROVED:
         data.addAll({
           'websiteApprovalDate': timestamp,
@@ -1248,11 +1763,9 @@ class DocumentService {
         });
         break;
     }
-
     return data;
   }
 
-  /// Get status-specific data for Stage 2 workflow
   Map<String, dynamic> _getStage2StatusSpecificData(
       String status, String userName, String userId, String userPosition) {
     final data = <String, dynamic>{};
@@ -1268,7 +1781,6 @@ class DocumentService {
           'stage2StartDate': timestamp,
         });
         break;
-
       case AppConstants.UNDER_PEER_REVIEW:
         data.addAll({
           'peerReviewStartDate': timestamp,
@@ -1277,7 +1789,6 @@ class DocumentService {
           'currentStage': 'under_peer_review',
         });
         break;
-
       case AppConstants.PEER_REVIEW_COMPLETED:
         data.addAll({
           'peerReviewCompletedDate': timestamp,
@@ -1285,7 +1796,6 @@ class DocumentService {
           'readyForHeadReview': true,
         });
         break;
-
       case AppConstants.HEAD_REVIEW_STAGE2:
         data.addAll({
           'headReviewStage2StartDate': timestamp,
@@ -1295,6 +1805,32 @@ class DocumentService {
         });
         break;
 
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        data.addAll({
+          'languageEditingStartDate': timestamp,
+          'languageEditingAssignedBy': userName,
+          'languageEditingAssignedById': userId,
+          'languageEditingAssignedDate': timestamp,
+          'currentStage': 'language_editing',
+        });
+        break;
+
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        data.addAll({
+          'languageEditingCompletedDate': timestamp,
+          'currentStage': 'language_editing_completed',
+          'readyForChefReview': true,
+        });
+        break;
+
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        data.addAll({
+          'chefReviewLanguageEditStartDate': timestamp,
+          'chefReviewLanguageEditBy': userName,
+          'chefReviewLanguageEditById': userId,
+          'currentStage': 'chef_review_language_edit',
+        });
+        break;
       case AppConstants.STAGE2_APPROVED:
         data.addAll({
           'stage2CompletionDate': timestamp,
@@ -1305,7 +1841,6 @@ class DocumentService {
           'stage2Status': 'completed_approved',
         });
         break;
-
       case AppConstants.STAGE2_REJECTED:
         data.addAll({
           'stage2RejectionDate': timestamp,
@@ -1315,7 +1850,6 @@ class DocumentService {
           'stage2Status': 'completed_rejected',
         });
         break;
-
       case AppConstants.STAGE2_EDIT_REQUESTED:
         data.addAll({
           'stage2EditRequestDate': timestamp,
@@ -1325,7 +1859,6 @@ class DocumentService {
           'stage2Status': 'edit_requested',
         });
         break;
-
       case AppConstants.STAGE2_WEBSITE_APPROVED:
         data.addAll({
           'stage2WebsiteApprovalDate': timestamp,
@@ -1336,22 +1869,26 @@ class DocumentService {
         });
         break;
     }
-
     return data;
   }
 
-  /// Get documents for Stage 1 and Stage 2 workflow based on user position
   Future<List<DocumentModel>> getDocumentsForUser(
       String userId, String userPosition) async {
     try {
       List<DocumentModel> documents = [];
 
-      // Stage 1 documents based on user position
       if (userPosition == AppConstants.POSITION_SECRETARY) {
         documents.addAll(await getDocumentsByStatus(AppConstants.INCOMING));
         documents
             .addAll(await getDocumentsByStatus(AppConstants.SECRETARY_REVIEW));
-      } else if (userPosition == AppConstants.POSITION_MANAGING_EDITOR) {
+      } else if (userPosition == AppConstants.POSITION_LANGUAGE_EDITOR) {
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITING_STAGE2));
+      } else if (userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+          userPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.CHEF_REVIEW_LANGUAGE_EDIT));
+
         documents
             .addAll(await getDocumentsByStatus(AppConstants.EDITOR_REVIEW));
         documents.addAll(
@@ -1361,7 +1898,10 @@ class DocumentService {
         documents.addAll(
             await getDocumentsByStatus(AppConstants.SECRETARY_EDIT_REQUESTED));
       } else if (userPosition == AppConstants.POSITION_HEAD_EDITOR) {
-        // Stage 1 documents
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITOR_COMPLETED));
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.CHEF_REVIEW_LANGUAGE_EDIT));
         documents.addAll(await getDocumentsByStatus(AppConstants.HEAD_REVIEW));
         documents
             .addAll(await getDocumentsByStatus(AppConstants.EDITOR_APPROVED));
@@ -1371,8 +1911,6 @@ class DocumentService {
             AppConstants.EDITOR_WEBSITE_RECOMMENDED));
         documents.addAll(
             await getDocumentsByStatus(AppConstants.EDITOR_EDIT_REQUESTED));
-
-        // Stage 2 documents for head editor
         documents
             .addAll(await getDocumentsByStatus(AppConstants.STAGE1_APPROVED));
         documents.addAll(
@@ -1383,7 +1921,6 @@ class DocumentService {
             await getDocumentsByStatus(AppConstants.HEAD_REVIEW_STAGE2));
       } else if (userPosition.contains('محكم') ||
           userPosition == AppConstants.POSITION_REVIEWER) {
-        // Get documents where this user is assigned as a reviewer
         final snapshot = await _firestore
             .collection('sent_documents')
             .where('status', whereIn: [
@@ -1394,7 +1931,6 @@ class DocumentService {
 
         for (final doc in snapshot.docs) {
           final docModel = DocumentModel.fromFirestore(doc);
-          // Check if the current user is assigned as a reviewer
           final isAssignedReviewer =
               docModel.reviewers.any((reviewer) => reviewer.userId == userId);
           if (isAssignedReviewer) {
@@ -1403,7 +1939,6 @@ class DocumentService {
         }
       }
 
-      // Sort by priority and date
       documents.sort((a, b) {
         final aPriority = _getDocumentPriority(a.status, userPosition);
         final bPriority = _getDocumentPriority(b.status, userPosition);
@@ -1422,9 +1957,7 @@ class DocumentService {
     }
   }
 
-  /// Get document priority based on status and user position
   int _getDocumentPriority(String status, String userPosition) {
-    // Higher priority (lower number) for urgent items
     const stage1PriorityMap = {
       AppConstants.INCOMING: 1,
       AppConstants.SECRETARY_REVIEW: 2,
@@ -1448,6 +1981,9 @@ class DocumentService {
       AppConstants.UNDER_PEER_REVIEW: 3,
       AppConstants.PEER_REVIEW_COMPLETED: 4,
       AppConstants.HEAD_REVIEW_STAGE2: 5,
+      AppConstants.LANGUAGE_EDITING_STAGE2: 6, // NEW
+      AppConstants.LANGUAGE_EDITOR_COMPLETED: 7, // NEW
+      AppConstants.CHEF_REVIEW_LANGUAGE_EDIT: 8, // NEW
       AppConstants.STAGE2_APPROVED: 20,
       AppConstants.STAGE2_REJECTED: 21,
       AppConstants.STAGE2_EDIT_REQUESTED: 22,
@@ -1457,7 +1993,6 @@ class DocumentService {
     return stage1PriorityMap[status] ?? stage2PriorityMap[status] ?? 999;
   }
 
-  /// Get document count by status
   Future<int> _getDocumentCountByStatus(String status) async {
     try {
       final querySnapshot = await _firestore
@@ -1471,7 +2006,6 @@ class DocumentService {
     }
   }
 
-  /// Admin override: Change document status to any status
   Future<void> adminChangeDocumentStatus(
     String documentId,
     String newStatus,
@@ -1503,7 +2037,6 @@ class DocumentService {
         'adminOverrideDate': FieldValue.serverTimestamp(),
       };
 
-      // Add status-specific data
       if (AppStyles.isStage1Status(newStatus)) {
         updateData.addAll(_getStage1StatusSpecificData(
             newStatus, adminName, adminId, adminPosition));
@@ -1524,7 +2057,6 @@ class DocumentService {
     }
   }
 
-  /// Get document by ID
   Future<DocumentModel?> getDocument(String documentId) async {
     try {
       final docSnapshot =
@@ -1541,7 +2073,6 @@ class DocumentService {
     }
   }
 
-  /// Get documents by status
   Future<List<DocumentModel>> getDocumentsByStatus(String status) async {
     try {
       final querySnapshot = await _firestore
@@ -1559,7 +2090,6 @@ class DocumentService {
     }
   }
 
-  /// Get documents by multiple statuses
   Future<List<DocumentModel>> getDocumentsByStatuses(
       List<String> statuses) async {
     try {
@@ -1591,7 +2121,6 @@ class DocumentService {
     }
   }
 
-  /// Stream documents for real-time updates
   Stream<List<DocumentModel>> streamDocumentsByStatus(String status) {
     return _firestore
         .collection('sent_documents')
@@ -1603,7 +2132,6 @@ class DocumentService {
             .toList());
   }
 
-  /// Get Stage 1 workflow progress for a document
   Map<String, dynamic> getStage1Progress(DocumentModel document) {
     final steps = AppConstants.getStage1WorkflowSteps();
     int currentStepIndex = -1;
@@ -1635,7 +2163,6 @@ class DocumentService {
     };
   }
 
-  /// Get Stage 2 workflow progress for a document
   Map<String, dynamic> getStage2Progress(DocumentModel document) {
     final steps = AppConstants.getStage2WorkflowSteps();
     int currentStepIndex = -1;
@@ -1667,51 +2194,52 @@ class DocumentService {
     };
   }
 
-  /// Check if document can proceed to action based on previous decisions
   bool canProceedWithAction(
       DocumentModel document, String action, String userPosition) {
-    // Stage 1 permissions
     switch (document.status) {
       case AppConstants.INCOMING:
         return userPosition == AppConstants.POSITION_SECRETARY;
-
       case AppConstants.SECRETARY_REVIEW:
         return userPosition == AppConstants.POSITION_SECRETARY;
-
       case AppConstants.SECRETARY_APPROVED:
       case AppConstants.SECRETARY_REJECTED:
       case AppConstants.SECRETARY_EDIT_REQUESTED:
         return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
-
       case AppConstants.EDITOR_REVIEW:
         return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
-
       case AppConstants.EDITOR_APPROVED:
       case AppConstants.EDITOR_REJECTED:
       case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
       case AppConstants.EDITOR_EDIT_REQUESTED:
         return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-
       case AppConstants.HEAD_REVIEW:
         return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-
-      // Stage 2 permissions
       case AppConstants.STAGE1_APPROVED:
       case AppConstants.REVIEWERS_ASSIGNED:
       case AppConstants.PEER_REVIEW_COMPLETED:
       case AppConstants.HEAD_REVIEW_STAGE2:
+        if (action == AppConstants.ACTION_SEND_TO_LANGUAGE_EDITOR) {
+          return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+        }
         return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        return userPosition == AppConstants.POSITION_LANGUAGE_EDITOR;
 
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
       case AppConstants.UNDER_PEER_REVIEW:
         return userPosition.contains('محكم') ||
             userPosition == AppConstants.POSITION_REVIEWER;
-
       default:
         return false;
     }
   }
 
-  /// Get workflow stage name
   String getWorkflowStageName(String status) {
     if (AppConstants.stage1Statuses.contains(status)) {
       return 'المرحلة الأولى: الموافقة';
@@ -1723,21 +2251,17 @@ class DocumentService {
     return 'مرحلة غير معروفة';
   }
 
-  /// Check if a document was rejected at any stage and can be overridden
   bool canBeOverridden(DocumentModel document, String userPosition) {
     switch (document.status) {
       case AppConstants.SECRETARY_REJECTED:
         return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
-
       case AppConstants.EDITOR_REJECTED:
         return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-
       default:
         return false;
     }
   }
 
-  /// Get rejection reason from action log
   String? getRejectionReason(DocumentModel document) {
     final rejectionActions = document.actionLog
         .where((action) => action.action.contains('رفض'))
@@ -1751,15 +2275,12 @@ class DocumentService {
     return null;
   }
 
-  /// Get potential overriders for a rejected document
   List<String> getPotentialOverriders(String status) {
     switch (status) {
       case AppConstants.SECRETARY_REJECTED:
         return [AppConstants.POSITION_MANAGING_EDITOR];
-
       case AppConstants.EDITOR_REJECTED:
         return [AppConstants.POSITION_HEAD_EDITOR];
-
       default:
         return [];
     }
@@ -1768,6 +2289,19 @@ class DocumentService {
 
 // Permission service for all workflow stages
 class PermissionService {
+  static bool isLanguageEditor(String? position) {
+    return position == AppConstants.POSITION_LANGUAGE_EDITOR;
+  }
+
+  static bool canPerformLanguageEditing(String? position) {
+    return position == AppConstants.POSITION_LANGUAGE_EDITOR;
+  }
+
+  static bool canReviewLanguageEditing(String? position) {
+    return position == AppConstants.POSITION_MANAGING_EDITOR ||
+        position == AppConstants.POSITION_EDITOR_CHIEF;
+  }
+
   static bool canReviewIncomingFiles(String? position) {
     return position == AppConstants.POSITION_SECRETARY;
   }
@@ -1794,10 +2328,6 @@ class PermissionService {
         position == AppConstants.POSITION_REVIEWER;
   }
 
-  static bool isLanguageEditor(String? position) {
-    return position == AppConstants.POSITION_LANGUAGE_EDITOR;
-  }
-
   static bool isLayoutDesigner(String? position) {
     return position == AppConstants.POSITION_LAYOUT_DESIGNER;
   }
@@ -1811,6 +2341,16 @@ class PermissionService {
   }
 
   static bool canPerformAction(String status, String action, String? position) {
+    if (status == AppConstants.LANGUAGE_EDITING_STAGE2 &&
+        action == AppConstants.ACTION_COMPLETE_LANGUAGE_EDITING) {
+      return position == AppConstants.POSITION_LANGUAGE_EDITOR;
+    }
+    if (status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
+        (action == AppConstants.ACTION_CHEF_APPROVE_LANGUAGE_EDIT ||
+            action == AppConstants.ACTION_CHEF_REJECT_LANGUAGE_EDIT)) {
+      return position == AppConstants.POSITION_MANAGING_EDITOR ||
+          position == AppConstants.POSITION_EDITOR_CHIEF;
+    }
     final availableActions =
         AppConstants.getAvailableActions(status, position ?? '');
     return availableActions.any((actionMap) => actionMap['action'] == action);
@@ -1822,21 +2362,17 @@ class PermissionService {
     return actions.map<String>((action) => action['action'] as String).toList();
   }
 
-  /// Check if user can override a rejection decision
   static bool canOverrideRejection(String status, String? position) {
     switch (status) {
       case AppConstants.SECRETARY_REJECTED:
         return position == AppConstants.POSITION_MANAGING_EDITOR;
-
       case AppConstants.EDITOR_REJECTED:
         return position == AppConstants.POSITION_HEAD_EDITOR;
-
       default:
         return false;
     }
   }
 
-  /// Check if user has higher authority than the rejector
   static bool hasHigherAuthority(
       String rejectingPosition, String? userPosition) {
     const authorityLevels = {
@@ -1851,7 +2387,6 @@ class PermissionService {
     return userLevel > rejectingLevel;
   }
 
-  /// Stage 2 specific permissions
   static bool canAssignReviewers(String? position) {
     return position == AppConstants.POSITION_HEAD_EDITOR;
   }
@@ -1866,10 +2401,8 @@ class PermissionService {
 
   static bool canViewReviewerFeedback(
       String? position, String? userId, DocumentModel document) {
-    // Head editor can view all feedback
     if (position == AppConstants.POSITION_HEAD_EDITOR) return true;
 
-    // Reviewer can view their own feedback
     if (isReviewer(position)) {
       return document.reviewers.any((reviewer) => reviewer.userId == userId);
     }
@@ -1878,7 +2411,7 @@ class PermissionService {
   }
 }
 
-// File handling service (unchanged from original)
+// File handling service
 class FileService {
   static const Map<String, String> supportedFileTypes =
       AppConstants.supportedFileTypes;
@@ -1986,7 +2519,6 @@ class FileService {
     return supportedFileTypes[extension.toLowerCase()];
   }
 
-  /// Get file info from URL and optional document data
   static FileInfo getFileInfo(String url,
       {Map<String, dynamic>? documentData}) {
     String extension = getFileExtension(url, documentData: documentData);
@@ -2001,7 +2533,6 @@ class FileService {
   }
 }
 
-/// File information data class
 class FileInfo {
   final String extension;
   final String typeName;

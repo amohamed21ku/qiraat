@@ -170,6 +170,826 @@ class _Stage2HeadEditorDetailsPageState
       ),
     );
   }
+// Enhanced Review Display Components for stage2HeadEditor.dart
+// Add these methods to your Stage2HeadEditorDetailsPage class
+
+  Widget _buildDetailedReviewSummary() {
+    final completedReviews = _document!.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .toList();
+
+    if (completedReviews.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.hourglass_empty, color: Colors.orange.shade600),
+            SizedBox(width: 12),
+            Text(
+              'لا توجد مراجعات مكتملة بعد',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Overall Statistics
+        _buildReviewStatistics(completedReviews),
+
+        SizedBox(height: 20),
+
+        // Individual Review Details
+        Text(
+          'تفاصيل المراجعات الفردية:',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.purple.shade700,
+          ),
+        ),
+        SizedBox(height: 12),
+
+        ...completedReviews
+            .map((reviewer) => _buildDetailedReviewCard(reviewer)),
+
+        SizedBox(height: 20),
+
+        // Recommendation Summary
+        _buildRecommendationSummary(completedReviews),
+      ],
+    );
+  }
+
+  Widget _buildReviewStatistics(List<ReviewerModel> completedReviews) {
+    // Calculate statistics
+    final ratings = completedReviews
+        .where((r) => r.rating != null && r.rating! > 0)
+        .map((r) => r.rating!.toDouble())
+        .toList();
+
+    final averageRating = ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
+
+    // Count recommendations
+    final recommendations = <String, int>{
+      'accept': 0,
+      'minor_revision': 0,
+      'major_revision': 0,
+      'reject': 0,
+    };
+
+    for (var reviewer in completedReviews) {
+      final rec = reviewer.recommendation ?? 'unknown';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec] = recommendations[rec]! + 1;
+      }
+    }
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.indigo.shade50, Colors.indigo.shade100],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.indigo.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics, color: Colors.indigo.shade600, size: 24),
+              SizedBox(width: 12),
+              Text(
+                'إحصائيات المراجعة الشاملة',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+
+          // Rating Statistics
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  'متوسط التقييم',
+                  '${averageRating.toStringAsFixed(1)}/5',
+                  Icons.star,
+                  Colors.amber,
+                  subtitle: _getRatingDescription(averageRating.round()),
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: _buildStatItem(
+                  'عدد المراجعات',
+                  '${completedReviews.length}',
+                  Icons.people,
+                  Colors.blue,
+                  subtitle: 'من أصل ${_document!.reviewers.length} محكمين',
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Visual Rating Distribution
+          Text(
+            'توزيع التقييمات:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          _buildRatingDistribution(ratings),
+
+          SizedBox(height: 16),
+
+          // Recommendation Distribution
+          Text(
+            'توزيع التوصيات:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          _buildRecommendationDistribution(recommendations),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color,
+      {String? subtitle}) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (subtitle != null) ...[
+            SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingDistribution(List<double> ratings) {
+    Map<int, int> distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+
+    for (var rating in ratings) {
+      distribution[rating.round()] = distribution[rating.round()]! + 1;
+    }
+
+    final maxCount = distribution.values.reduce((a, b) => a > b ? a : b);
+
+    return Row(
+      children: [1, 2, 3, 4, 5].map((star) {
+        final count = distribution[star]!;
+        final percentage = maxCount > 0 ? count / maxCount : 0.0;
+
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 2),
+            child: Column(
+              children: [
+                Container(
+                  height: 40,
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    height: (percentage * 40),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.7),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(4)),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.star, color: Colors.amber, size: 12),
+                    Text('$star', style: TextStyle(fontSize: 10)),
+                  ],
+                ),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRecommendationDistribution(Map<String, int> recommendations) {
+    final colors = {
+      'accept': Colors.green,
+      'minor_revision': Colors.blue,
+      'major_revision': Colors.orange,
+      'reject': Colors.red,
+    };
+
+    final labels = {
+      'accept': 'قبول',
+      'minor_revision': 'تعديل طفيف',
+      'major_revision': 'تعديل كبير',
+      'reject': 'رفض',
+    };
+
+    return Row(
+      children: recommendations.entries.map((entry) {
+        final count = entry.value;
+        final color = colors[entry.key]!;
+        final label = labels[entry.key]!;
+
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 2),
+            padding: EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDetailedReviewCard(ReviewerModel reviewer) {
+    final rating = reviewer.rating ?? 0;
+    final recommendation = reviewer.recommendation ?? '';
+
+    Color recommendationColor = _getRecommendationColor(recommendation);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: recommendationColor.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Reviewer Header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: recommendationColor,
+                child: Text(
+                  reviewer.name[0],
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reviewer.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    Text(
+                      reviewer.position,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    if (reviewer.submittedDate != null)
+                      Text(
+                        'تاريخ الإرسال: ${_formatDate(reviewer.submittedDate!)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: recommendationColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _getRecommendationText(recommendation),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Rating Display
+          Row(
+            children: [
+              Text(
+                'التقييم: ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              ...List.generate(5, (index) {
+                return Icon(
+                  index < rating ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                  size: 20,
+                );
+              }),
+              SizedBox(width: 8),
+              Text(
+                '($rating/5)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber.shade700,
+                ),
+              ),
+              Spacer(),
+              Text(
+                _getRatingDescription(rating),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Comments Section
+          if (reviewer.comment != null && reviewer.comment!.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.comment,
+                          color: Colors.grey.shade600, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'تعليقات المحكم:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    reviewer.comment!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Additional Review Details
+          if (reviewer.strengths != null ||
+              reviewer.weaknesses != null ||
+              reviewer.recommendations != null)
+            _buildAdditionalReviewDetails(reviewer),
+
+          // Attached Files
+          if (reviewer.attachedFileUrl != null &&
+              reviewer.attachedFileUrl!.isNotEmpty)
+            _buildAttachedFileSection(reviewer),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdditionalReviewDetails(ReviewerModel reviewer) {
+    return Container(
+      margin: EdgeInsets.only(top: 16),
+      child: Column(
+        children: [
+          if (reviewer.strengths != null && reviewer.strengths!.isNotEmpty)
+            _buildReviewDetailSection(
+              'نقاط القوة',
+              reviewer.strengths!,
+              Icons.thumb_up,
+              Colors.green,
+            ),
+          if (reviewer.weaknesses != null && reviewer.weaknesses!.isNotEmpty)
+            _buildReviewDetailSection(
+              'نقاط الضعف',
+              reviewer.weaknesses!,
+              Icons.thumb_down,
+              Colors.red,
+            ),
+          if (reviewer.recommendations != null &&
+              reviewer.recommendations!.isNotEmpty)
+            _buildReviewDetailSection(
+              'توصيات التحسين',
+              reviewer.recommendations!,
+              Icons.lightbulb,
+              Colors.orange,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewDetailSection(
+      String title, String content, IconData icon, Color color) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6),
+          Text(
+            content,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachedFileSection(ReviewerModel reviewer) {
+    return Container(
+      margin: EdgeInsets.only(top: 16),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.attach_file, color: Colors.blue.shade600, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'تقرير التحكيم المرفق',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                if (reviewer.attachedFileName != null)
+                  Text(
+                    reviewer.attachedFileName!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _downloadReviewerFile(reviewer.attachedFileUrl!),
+            icon: Icon(Icons.download, size: 16),
+            label: Text('تحميل'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: Size(0, 32),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationSummary(List<ReviewerModel> completedReviews) {
+    final recommendations = <String, List<ReviewerModel>>{
+      'accept': [],
+      'minor_revision': [],
+      'major_revision': [],
+      'reject': [],
+    };
+
+    for (var reviewer in completedReviews) {
+      final rec = reviewer.recommendation ?? 'unknown';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec]!.add(reviewer);
+      }
+    }
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.purple.shade50, Colors.purple.shade100],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purple.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.summarize, color: Colors.purple.shade600, size: 24),
+              SizedBox(width: 12),
+              Text(
+                'ملخص التوصيات النهائية',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          ...recommendations.entries
+              .where((entry) => entry.value.isNotEmpty)
+              .map((entry) {
+            final recommendation = entry.key;
+            final reviewers = entry.value;
+            final color = _getRecommendationColor(recommendation);
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          _getRecommendationText(recommendation),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        '${reviewers.length} محكم',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'المحكمون: ${reviewers.map((r) => r.name).join(', ')}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+// Helper methods
+  Color _getRecommendationColor(String recommendation) {
+    switch (recommendation) {
+      case 'accept':
+        return Colors.green;
+      case 'minor_revision':
+        return Colors.blue;
+      case 'major_revision':
+        return Colors.orange;
+      case 'reject':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getRecommendationText(String recommendation) {
+    switch (recommendation) {
+      case 'accept':
+        return 'قبول للنشر';
+      case 'minor_revision':
+        return 'تعديلات طفيفة';
+      case 'major_revision':
+        return 'تعديلات كبيرة';
+      case 'reject':
+        return 'رفض النشر';
+      default:
+        return 'غير محدد';
+    }
+  }
+
+  String _getRatingDescription(int rating) {
+    switch (rating) {
+      case 1:
+        return 'ضعيف جداً';
+      case 2:
+        return 'ضعيف';
+      case 3:
+        return 'متوسط';
+      case 4:
+        return 'جيد';
+      case 5:
+        return 'ممتاز';
+      default:
+        return 'غير مقيم';
+    }
+  }
+
+  Future<void> _downloadReviewerFile(String fileUrl) async {
+    setState(() => _isLoading = true);
+
+    try {
+      if (kIsWeb) {
+        final html.AnchorElement anchor = html.AnchorElement(href: fileUrl)
+          ..download = 'reviewer_report.pdf'
+          ..style.display = 'none';
+
+        html.document.body?.children.add(anchor);
+        anchor.click();
+        html.document.body?.children.remove(anchor);
+
+        _showSuccessSnackBar('تم بدء تنزيل تقرير المحكم');
+      } else {
+        _showSuccessSnackBar('سيتم إضافة تحميل الملفات على الهاتف قريباً');
+      }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في تحميل الملف: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   Widget _buildHeader(bool isDesktop) {
     return Container(
@@ -675,6 +1495,8 @@ class _Stage2HeadEditorDetailsPageState
       case AppConstants.PEER_REVIEW_COMPLETED:
       case AppConstants.HEAD_REVIEW_STAGE2:
         return 'المراجعة النهائية للتحكيم';
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return 'القرار النهائي بعد التدقيق اللغوي';
       default:
         return 'إدارة المرحلة الثانية';
     }
@@ -691,6 +1513,8 @@ class _Stage2HeadEditorDetailsPageState
       case AppConstants.PEER_REVIEW_COMPLETED:
       case AppConstants.HEAD_REVIEW_STAGE2:
         return 'مراجعة نتائج التحكيم واتخاذ القرار';
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return 'اتخاذ القرار النهائي بعد اكتمال التدقيق اللغوي';
       default:
         return 'إدارة سير العمل';
     }
@@ -924,6 +1748,8 @@ class _Stage2HeadEditorDetailsPageState
     );
   }
 
+// Update the _buildFinalDecisionPanel method in stage2HeadEditor.dart
+
   Widget _buildFinalDecisionPanel() {
     return Column(
       children: [
@@ -953,114 +1779,393 @@ class _Stage2HeadEditorDetailsPageState
                       color: Colors.purple.shade700,
                     ),
                   ),
+                  Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: () => _showSimpleReviewSummary(),
+                    icon: Icon(Icons.analytics, size: 16),
+                    label: Text('عرض التفاصيل'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple.shade600,
+                      foregroundColor: Colors.white,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
                 ],
               ),
               SizedBox(height: 16),
-              _buildReviewSummary(),
+              _buildSimpleReviewSummary(),
             ],
           ),
         ),
 
         SizedBox(height: 24),
 
-        // Decision Options
-        Text(
-          'القرارات المتاحة:',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: _getThemeColor(),
-          ),
-        ),
-
-        SizedBox(height: 16),
-
-        Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: _buildFinalActionButton(
-                title: 'الموافقة للمرحلة الثالثة',
-                subtitle: 'إرسال للتحرير اللغوي والإخراج',
-                icon: Icons.verified,
-                color: Colors.green,
-                onPressed: () => _showFinalActionDialog('stage3_approve'),
-              ),
+        // Decision Options based on status
+        if (_document!.status == AppConstants.PEER_REVIEW_COMPLETED ||
+            _document!.status == AppConstants.HEAD_REVIEW_STAGE2) ...[
+          Text(
+            'القرارات المتاحة:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getThemeColor(),
             ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFinalActionButton(
-                    title: 'طلب تعديل',
-                    subtitle: 'يحتاج تعديلات محددة',
-                    icon: Icons.edit,
-                    color: Colors.orange,
-                    onPressed: () => _showFinalActionDialog('edit_request'),
-                  ),
+          ),
+          SizedBox(height: 16),
+
+          // Primary option: Send to Language Editor
+          SizedBox(
+            width: double.infinity,
+            child: _buildFinalActionButton(
+              title: 'إرسال للتدقيق اللغوي',
+              subtitle: 'إرسال للمدقق اللغوي قبل القرار النهائي',
+              icon: Icons.spellcheck,
+              color: Colors.blue,
+              onPressed: () =>
+                  _showFinalActionDialog('send_to_language_editor'),
+            ),
+          ),
+
+          SizedBox(height: 12),
+
+          // Alternative options
+          Row(
+            children: [
+              Expanded(
+                child: _buildFinalActionButton(
+                  title: 'رفض مباشر',
+                  subtitle: 'رفض بدون تدقيق لغوي',
+                  icon: Icons.cancel,
+                  color: Colors.red,
+                  onPressed: () => _showFinalActionDialog('reject'),
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildFinalActionButton(
-                    title: 'رفض',
-                    subtitle: 'رفض بناءً على التحكيم',
-                    icon: Icons.cancel,
-                    color: Colors.red,
-                    onPressed: () => _showFinalActionDialog('reject'),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildFinalActionButton(
+                  title: 'نشر الموقع',
+                  subtitle: 'موافقة للموقع فقط',
+                  icon: Icons.public,
+                  color: Colors.orange,
+                  onPressed: () => _showFinalActionDialog('website_approve'),
+                ),
+              ),
+            ],
+          ),
+        ] else if (_document!.status ==
+            AppConstants.CHEF_REVIEW_LANGUAGE_EDIT) ...[
+          // After language editing review - final decisions
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade50, Colors.green.shade100],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle,
+                        color: Colors.green.shade600, size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'اكتمل التدقيق اللغوي - القرار النهائي',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'تم اعتماد التدقيق اللغوي من مدير التحرير. اتخذ قرارك النهائي.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.green.shade600,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: _buildFinalActionButton(
-                title: 'موافقة نشر الموقع',
-                subtitle: 'نشر على الموقع فقط',
-                icon: Icons.public,
-                color: Colors.blue,
-                onPressed: () => _showFinalActionDialog('website_approve'),
-              ),
+          ),
+
+          SizedBox(height: 16),
+
+          Text(
+            'القرارات النهائية:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getThemeColor(),
             ),
-          ],
-        ),
+          ),
+
+          SizedBox(height: 16),
+
+          Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: _buildFinalActionButton(
+                  title: 'الموافقة للمرحلة الثالثة',
+                  subtitle: 'إرسال للتحرير اللغوي والإخراج النهائي',
+                  icon: Icons.verified,
+                  color: Colors.green,
+                  onPressed: () => _showFinalActionDialog('stage3_approve'),
+                ),
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFinalActionButton(
+                      title: 'طلب تعديل',
+                      subtitle: 'يحتاج تعديلات إضافية',
+                      icon: Icons.edit,
+                      color: Colors.orange,
+                      onPressed: () => _showFinalActionDialog('edit_request'),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildFinalActionButton(
+                      title: 'رفض',
+                      subtitle: 'رفض نهائي',
+                      icon: Icons.cancel,
+                      color: Colors.red,
+                      onPressed: () => _showFinalActionDialog('reject'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildReviewSummary() {
+// Simple review summary that works within the main class
+  Widget _buildSimpleReviewSummary() {
     final completedReviews = _document!.reviewers
         .where((reviewer) => reviewer.reviewStatus == 'Completed')
         .toList();
 
     if (completedReviews.isEmpty) {
-      return Text(
-        'لا توجد مراجعات مكتملة بعد',
-        style: TextStyle(
-          fontSize: 14,
-          color: Colors.grey.shade600,
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.hourglass_empty, color: Colors.orange.shade600),
+            SizedBox(width: 12),
+            Text(
+              'لا توجد مراجعات مكتملة بعد',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       );
     }
 
+    // Calculate basic statistics
+    final ratings = completedReviews
+        .where((r) => r.rating != null && r.rating! > 0)
+        .map((r) => r.rating!.toDouble())
+        .toList();
+
+    final averageRating = ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
+
+    final recommendations = <String, int>{
+      'accept': 0,
+      'minor_revision': 0,
+      'major_revision': 0,
+      'reject': 0,
+    };
+
+    for (var reviewer in completedReviews) {
+      final rec = reviewer.recommendation ?? 'unknown';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec] = recommendations[rec]! + 1;
+      }
+    }
+
     return Column(
-      children: completedReviews.map((reviewer) {
-        return Container(
-          margin: EdgeInsets.only(bottom: 12),
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.purple.shade200),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      children: [
+        // Statistics Row
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${averageRating.toStringAsFixed(1)}/5',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade700,
+                      ),
+                    ),
+                    Text(
+                      'متوسط التقييم',
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${completedReviews.length}/${_document!.reviewers.length}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    Text(
+                      'مراجعات مكتملة',
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        SizedBox(height: 12),
+
+        // Recommendations Summary
+        Row(
+          children: [
+            if (recommendations['accept']! > 0)
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'قبول: ${recommendations['accept']}',
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.green.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            if (recommendations['minor_revision']! > 0) ...[
+              if (recommendations['accept']! > 0) SizedBox(width: 4),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'تعديل طفيف: ${recommendations['minor_revision']}',
+                    style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+            if (recommendations['major_revision']! > 0) ...[
+              if (recommendations['accept']! > 0 ||
+                  recommendations['minor_revision']! > 0)
+                SizedBox(width: 4),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'تعديل كبير: ${recommendations['major_revision']}',
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.orange.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+            if (recommendations['reject']! > 0) ...[
+              if (recommendations.values
+                  .any((v) => v > 0 && recommendations['reject'] != v))
+                SizedBox(width: 4),
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'رفض: ${recommendations['reject']}',
+                    style: TextStyle(fontSize: 11, color: Colors.red.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+
+        SizedBox(height: 12),
+
+        // Individual reviews preview
+        Column(
+          children: completedReviews.take(2).map((reviewer) {
+            return Container(
+              margin: EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: Colors.green,
+                    backgroundColor:
+                        _getRecommendationColor(reviewer.recommendation ?? ''),
                     child: Text(
                       reviewer.name[0],
                       style: TextStyle(color: Colors.white, fontSize: 12),
@@ -1074,53 +2179,316 @@ class _Stage2HeadEditorDetailsPageState
                         Text(
                           reviewer.name,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
-                          reviewer.position,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
+                        if (reviewer.comment != null &&
+                            reviewer.comment!.isNotEmpty)
+                          Text(
+                            reviewer.comment!.length > 50
+                                ? '${reviewer.comment!.substring(0, 50)}...'
+                                : reviewer.comment!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(12),
+                  if (reviewer.rating != null)
+                    Row(
+                      children: List.generate(
+                          reviewer.rating!,
+                          (index) =>
+                              Icon(Icons.star, color: Colors.amber, size: 12)),
                     ),
-                    child: Text(
-                      'مكتمل',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
                 ],
               ),
-              if (reviewer.comment != null && reviewer.comment!.isNotEmpty) ...[
-                SizedBox(height: 8),
-                Text(
-                  reviewer.comment!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
+            );
+          }).toList(),
+        ),
+
+        if (completedReviews.length > 2)
+          Text(
+            'و ${completedReviews.length - 2} مراجعات أخرى...',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showSimpleReviewSummary() {
+    final completedReviews = _document!.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.analytics, color: Colors.purple.shade600),
+              SizedBox(width: 12),
+              Text('تفاصيل نتائج التحكيم'),
             ],
           ),
-        );
-      }).toList(),
+          content: Container(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: completedReviews.map((reviewer) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 16),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Reviewer Header
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: _getRecommendationColor(
+                                  reviewer.recommendation ?? ''),
+                              child: Text(
+                                reviewer.name[0],
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    reviewer.name,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    reviewer.position,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (reviewer.rating != null)
+                              Row(
+                                children: List.generate(
+                                    reviewer.rating!,
+                                    (index) => Icon(Icons.star,
+                                        color: Colors.amber, size: 16)),
+                              ),
+                          ],
+                        ),
+
+                        // Recommendation Badge
+                        if (reviewer.recommendation != null) ...[
+                          SizedBox(height: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getRecommendationColor(
+                                  reviewer.recommendation!),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _getRecommendationText(reviewer.recommendation!),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        // Comments
+                        if (reviewer.comment != null &&
+                            reviewer.comment!.isNotEmpty) ...[
+                          SizedBox(height: 12),
+                          Text(
+                            'التعليقات:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            reviewer.comment!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+
+                        // Attached Files Section
+                        if (reviewer.attachedFileUrl != null &&
+                            reviewer.attachedFileUrl!.isNotEmpty) ...[
+                          SizedBox(height: 12),
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.attach_file,
+                                    color: Colors.blue.shade600, size: 20),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'تقرير التحكيم المرفق',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
+                                      if (reviewer.attachedFileName != null)
+                                        Text(
+                                          reviewer.attachedFileName!,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.blue.shade600,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // View Button
+                                    InkWell(
+                                      onTap: () => _viewReviewerFile(
+                                          reviewer.attachedFileUrl!),
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade600,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.visibility,
+                                                color: Colors.white, size: 14),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'عرض',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 6),
+                                    // Download Button
+                                    InkWell(
+                                      onTap: () => _downloadReviewerFile(
+                                          reviewer.attachedFileUrl!),
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.shade600,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.download,
+                                                color: Colors.white, size: 14),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'تحميل',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+// Add this method if it doesn't exist already
+  Future<void> _viewReviewerFile(String fileUrl) async {
+    setState(() => _isLoading = true);
+
+    try {
+      if (kIsWeb) {
+        html.window.open(fileUrl, '_blank');
+        _showSuccessSnackBar('تم فتح تقرير المحكم في تبويب جديد');
+      } else {
+        _showSuccessSnackBar('سيتم إضافة عرض الملفات على الهاتف قريباً');
+      }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في فتح الملف: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   Widget _buildFinalActionButton({
@@ -1555,6 +2923,12 @@ class _Stage2HeadEditorDetailsPageState
     Color color = Colors.blue;
 
     switch (action) {
+      case 'send_to_language_editor':
+        title = 'إرسال للتدقيق اللغوي';
+        description =
+            'سيتم إرسال المقال للمدقق اللغوي للمراجعة اللغوية والأسلوبية';
+        color = Colors.blue;
+        break;
       case 'stage3_approve':
         title = 'الموافقة للمرحلة الثالثة';
         description = 'سيتم قبول المقال للانتقال للتحرير اللغوي والإخراج';
@@ -1616,28 +2990,64 @@ class _Stage2HeadEditorDetailsPageState
     return summary;
   }
 
+// Update the _processFinalAction method in stage2HeadEditor.dart
+
   Future<void> _processFinalAction(String action, String comment,
       String? fileUrl, String? fileName, String? editRequirements) async {
     setState(() => _isLoading = true);
 
     try {
       String nextStatus = '';
+      Map<String, dynamic> additionalData = {};
+
       switch (action) {
+        case 'send_to_language_editor':
+          nextStatus = AppConstants.LANGUAGE_EDITING_STAGE2;
+          additionalData = {
+            'languageEditingAssignedDate': FieldValue.serverTimestamp(),
+            'languageEditingAssignedBy': _currentUserName,
+            'languageEditingAssignedById': _currentUserId,
+            'sentToLanguageEditorDate': FieldValue.serverTimestamp(),
+          };
+          break;
         case 'stage3_approve':
           nextStatus = AppConstants.STAGE2_APPROVED;
+          additionalData = {
+            'stage2ApprovedDate': FieldValue.serverTimestamp(),
+            'finalDecision': 'approved_for_stage3',
+          };
           break;
         case 'edit_request':
           nextStatus = AppConstants.STAGE2_EDIT_REQUESTED;
+          if (editRequirements != null && editRequirements.isNotEmpty) {
+            additionalData['editRequirements'] = editRequirements;
+          }
+          additionalData['editRequestedDate'] = FieldValue.serverTimestamp();
           break;
         case 'reject':
           nextStatus = AppConstants.STAGE2_REJECTED;
+          additionalData = {
+            'rejectedDate': FieldValue.serverTimestamp(),
+            'finalDecision': 'rejected',
+          };
           break;
         case 'website_approve':
           nextStatus = AppConstants.STAGE2_WEBSITE_APPROVED;
+          additionalData = {
+            'websiteApprovedDate': FieldValue.serverTimestamp(),
+            'finalDecision': 'approved_for_website',
+          };
           break;
       }
 
-      final additionalData = <String, dynamic>{};
+      // Add common metadata
+      additionalData.addAll({
+        'decisionMadeBy': _currentUserName,
+        'decisionMadeById': _currentUserId,
+        'decisionMadeByPosition': _currentUserPosition,
+        'decisionDate': FieldValue.serverTimestamp(),
+      });
+
       if (editRequirements != null && editRequirements.isNotEmpty) {
         additionalData['editRequirements'] = editRequirements;
       }
@@ -1655,7 +3065,30 @@ class _Stage2HeadEditorDetailsPageState
       );
 
       await _refreshDocument();
-      _showSuccessSnackBar('تم اتخاذ القرار بنجاح');
+
+      // Show appropriate success message
+      String successMessage = '';
+      switch (action) {
+        case 'send_to_language_editor':
+          successMessage = 'تم إرسال المقال للتدقيق اللغوي بنجاح';
+          break;
+        case 'stage3_approve':
+          successMessage = 'تم قبول المقال للمرحلة الثالثة بنجاح';
+          break;
+        case 'edit_request':
+          successMessage = 'تم طلب التعديل بنجاح';
+          break;
+        case 'reject':
+          successMessage = 'تم رفض المقال بنجاح';
+          break;
+        case 'website_approve':
+          successMessage = 'تم قبول المقال لنشر الموقع بنجاح';
+          break;
+        default:
+          successMessage = 'تم اتخاذ القرار بنجاح';
+      }
+
+      _showSuccessSnackBar(successMessage);
     } catch (e) {
       _showErrorSnackBar('خطأ في اتخاذ القرار: $e');
     } finally {
@@ -2564,5 +3997,817 @@ class _Stage2ActionDialogState extends State<Stage2ActionDialog> {
       default:
         return 'application/octet-stream';
     }
+  }
+}
+
+// Complete and working DetailedReviewDialog
+class DetailedReviewDialog extends StatefulWidget {
+  final DocumentModel document;
+
+  const DetailedReviewDialog({
+    Key? key,
+    required this.document,
+  }) : super(key: key);
+
+  @override
+  _DetailedReviewDialogState createState() => _DetailedReviewDialogState();
+}
+
+class _DetailedReviewDialogState extends State<DetailedReviewDialog>
+    with TickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: ui.TextDirection.rtl,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.8,
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade600, Colors.purple.shade800],
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.analytics, color: Colors.white, size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'التحليل المفصل لنتائج التحكيم',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Tabs
+              Container(
+                color: Colors.purple.shade50,
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: Colors.purple.shade700,
+                  unselectedLabelColor: Colors.purple.shade400,
+                  indicatorColor: Colors.purple.shade600,
+                  tabs: [
+                    Tab(text: 'الإحصائيات'),
+                    Tab(text: 'المراجعات الفردية'),
+                    Tab(text: 'التوصيات'),
+                  ],
+                ),
+              ),
+
+              // Tab Content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildStatisticsTab(),
+                    _buildIndividualReviewsTab(),
+                    _buildRecommendationsTab(),
+                  ],
+                ),
+              ),
+
+              // Footer
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text('إغلاق'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatisticsTab() {
+    final completedReviews = widget.document.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .toList();
+
+    if (completedReviews.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hourglass_empty, size: 64, color: Colors.grey.shade400),
+            SizedBox(height: 16),
+            Text(
+              'لا توجد مراجعات مكتملة بعد',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Calculate statistics
+    final ratings = completedReviews
+        .where((r) => r.rating != null && r.rating! > 0)
+        .map((r) => r.rating!.toDouble())
+        .toList();
+
+    final averageRating = ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
+
+    final recommendations = <String, int>{
+      'accept': 0,
+      'minor_revision': 0,
+      'major_revision': 0,
+      'reject': 0,
+    };
+
+    for (var reviewer in completedReviews) {
+      final rec = reviewer.recommendation ?? 'unknown';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec] = recommendations[rec]! + 1;
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Overall Statistics
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.indigo.shade50, Colors.indigo.shade100],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.indigo.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'الإحصائيات العامة',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo.shade700,
+                  ),
+                ),
+                SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatCard(
+                        'متوسط التقييم',
+                        '${averageRating.toStringAsFixed(1)}/5',
+                        Icons.star,
+                        Colors.amber,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatCard(
+                        'عدد المراجعات',
+                        '${completedReviews.length}',
+                        Icons.people,
+                        Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 16),
+
+                // Rating Distribution
+                Text(
+                  'توزيع التقييمات:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo.shade700,
+                  ),
+                ),
+                SizedBox(height: 8),
+                _buildRatingDistribution(ratings),
+
+                SizedBox(height: 16),
+
+                // Recommendation Distribution
+                Text(
+                  'توزيع التوصيات:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo.shade700,
+                  ),
+                ),
+                SizedBox(height: 8),
+                _buildRecommendationDistribution(recommendations),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIndividualReviewsTab() {
+    final completedReviews = widget.document.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .toList();
+
+    if (completedReviews.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.rate_review_outlined,
+                size: 64, color: Colors.grey.shade400),
+            SizedBox(height: 16),
+            Text(
+              'لا توجد مراجعات مكتملة',
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.all(20),
+      itemCount: completedReviews.length,
+      itemBuilder: (context, index) {
+        return _buildReviewerCard(completedReviews[index]);
+      },
+    );
+  }
+
+  Widget _buildRecommendationsTab() {
+    final completedReviews = widget.document.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .toList();
+
+    if (completedReviews.isEmpty) {
+      return Center(
+        child: Text(
+          'لا توجد توصيات متاحة',
+          style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+        ),
+      );
+    }
+
+    final recommendations = <String, List<ReviewerModel>>{
+      'accept': [],
+      'minor_revision': [],
+      'major_revision': [],
+      'reject': [],
+    };
+
+    for (var reviewer in completedReviews) {
+      final rec = reviewer.recommendation ?? 'unknown';
+      if (recommendations.containsKey(rec)) {
+        recommendations[rec]!.add(reviewer);
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ملخص التوصيات النهائية',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.purple.shade700,
+            ),
+          ),
+          SizedBox(height: 16),
+          ...recommendations.entries
+              .where((entry) => entry.value.isNotEmpty)
+              .map((entry) {
+            final recommendation = entry.key;
+            final reviewers = entry.value;
+            final color = _getRecommendationColor(recommendation);
+
+            return Container(
+              margin: EdgeInsets.only(bottom: 16),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          _getRecommendationText(recommendation),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        '${reviewers.length} محكم',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'المحكمون: ${reviewers.map((r) => r.name).join(', ')}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingDistribution(List<double> ratings) {
+    Map<int, int> distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+
+    for (var rating in ratings) {
+      distribution[rating.round()] = distribution[rating.round()]! + 1;
+    }
+
+    final maxCount = distribution.values.isNotEmpty
+        ? distribution.values.reduce((a, b) => a > b ? a : b)
+        : 1;
+
+    return Row(
+      children: [1, 2, 3, 4, 5].map((star) {
+        final count = distribution[star]!;
+        final percentage = maxCount > 0 ? count / maxCount : 0.0;
+
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 2),
+            child: Column(
+              children: [
+                Container(
+                  height: 40,
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    height: (percentage * 40),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.7),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(4)),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.star, color: Colors.amber, size: 12),
+                    Text('$star', style: TextStyle(fontSize: 10)),
+                  ],
+                ),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRecommendationDistribution(Map<String, int> recommendations) {
+    final colors = {
+      'accept': Colors.green,
+      'minor_revision': Colors.blue,
+      'major_revision': Colors.orange,
+      'reject': Colors.red,
+    };
+
+    final labels = {
+      'accept': 'قبول',
+      'minor_revision': 'تعديل طفيف',
+      'major_revision': 'تعديل كبير',
+      'reject': 'رفض',
+    };
+
+    return Row(
+      children: recommendations.entries.map((entry) {
+        final count = entry.value;
+        final color = colors[entry.key]!;
+        final label = labels[entry.key]!;
+
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 2),
+            padding: EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildReviewerCard(ReviewerModel reviewer) {
+    final rating = reviewer.rating ?? 0;
+    final recommendation = reviewer.recommendation ?? '';
+
+    Color recommendationColor = _getRecommendationColor(recommendation);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: recommendationColor.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Reviewer Header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: recommendationColor,
+                child: Text(
+                  reviewer.name[0],
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reviewer.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    Text(
+                      reviewer.position,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    if (reviewer.submittedDate != null)
+                      Text(
+                        'تاريخ الإرسال: ${_formatDate(reviewer.submittedDate!)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: recommendationColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _getRecommendationText(recommendation),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Rating Display
+          Row(
+            children: [
+              Text(
+                'التقييم: ',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              ...List.generate(5, (index) {
+                return Icon(
+                  index < rating ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                  size: 20,
+                );
+              }),
+              SizedBox(width: 8),
+              Text(
+                '($rating/5)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber.shade700,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Comments Section
+          if (reviewer.comment != null && reviewer.comment!.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.comment,
+                          color: Colors.grey.shade600, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'تعليقات المحكم:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    reviewer.comment!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Attached Files
+          if (reviewer.attachedFileUrl != null &&
+              reviewer.attachedFileUrl!.isNotEmpty)
+            Container(
+              margin: EdgeInsets.only(top: 16),
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.attach_file,
+                      color: Colors.blue.shade600, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'تقرير التحكيم المرفق',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                        if (reviewer.attachedFileName != null)
+                          Text(
+                            reviewer.attachedFileName!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _downloadFile(reviewer.attachedFileUrl!),
+                    icon: Icon(Icons.download, size: 16),
+                    label: Text('تحميل'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size(0, 32),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getRecommendationColor(String recommendation) {
+    switch (recommendation) {
+      case 'accept':
+        return Colors.green;
+      case 'minor_revision':
+        return Colors.blue;
+      case 'major_revision':
+        return Colors.orange;
+      case 'reject':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getRecommendationText(String recommendation) {
+    switch (recommendation) {
+      case 'accept':
+        return 'قبول للنشر';
+      case 'minor_revision':
+        return 'تعديلات طفيفة';
+      case 'major_revision':
+        return 'تعديلات كبيرة';
+      case 'reject':
+        return 'رفض النشر';
+      default:
+        return 'غير محدد';
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _downloadFile(String fileUrl) {
+    // Implement file download logic
+    if (kIsWeb) {
+      html.window.open(fileUrl, '_blank');
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }
