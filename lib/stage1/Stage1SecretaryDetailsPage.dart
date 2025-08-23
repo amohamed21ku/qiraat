@@ -1,4 +1,6 @@
-// pages/Stage1/Stage1SecretaryDetailsPage.dart - Updated with comprehensive file handling
+// pages/Stage1/Stage1SecretaryDetailsPage.dart - Updated with comprehensive evaluation form
+import 'dart:convert';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,12 +15,18 @@ import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
 import 'package:path/path.dart' as path;
 
+import 'dart:typed_data';
+
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 import '../../Classes/current_user_providerr.dart';
-import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
+import '../App_Constants.dart';
+import '../Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/Action_history.dart';
-import '../Screens/Document_Handling/DocumentDetails/Widgets/senderinfocard.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
+import '../models/document_model.dart';
 
 class Stage1SecretaryDetailsPage extends StatefulWidget {
   final DocumentModel document;
@@ -290,11 +298,8 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
           // Document Info Card with File Viewing
           _buildDocumentInfoCard(),
 
-          // Sender Info Card
-          SenderInfoCard(
-            document: _document!,
-            isDesktop: isDesktop,
-          ),
+          // Enhanced Sender Info Card with all required information
+          _buildCompleteSenderInfoCard(),
 
           // Secretary Action Panel
           _buildSecretaryActionPanel(),
@@ -492,6 +497,347 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
+  Widget _buildCompleteSenderInfoCard() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade400, Colors.green.shade600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.person, color: Colors.white, size: 24),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'معلومات المرسل',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'البيانات الشخصية والأكاديمية',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Full Name
+                _buildInfoRow('الاسم الكامل', _document!.fullName ?? 'غير محدد',
+                    Icons.person),
+
+                // Email
+                _buildInfoRow('البريد الإلكتروني',
+                    _document!.email ?? 'غير محدد', Icons.email),
+
+                // Education
+                _buildInfoRow('الدرجة العلمية',
+                    _document!.education ?? 'غير محدد', Icons.school),
+
+                // Status
+                _buildInfoRow(
+                    'الحالة',
+                    AppStyles.getStatusDisplayName(_document!.status),
+                    Icons.info),
+
+                // About/Research Summary
+                if (_document!.about != null && _document!.about!.isNotEmpty)
+                  _buildInfoSection('ملخص البحث/عنوان المقال',
+                      _document!.about!, Icons.description),
+
+                // Co-authors
+                if (_document!.coAuthors != null &&
+                    _document!.coAuthors!.isNotEmpty)
+                  _buildCoAuthorsSection(),
+
+                // CV Section
+                if (_document!.cvUrl != null && _document!.cvUrl!.isNotEmpty)
+                  _buildCVSection(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, IconData icon) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.green.shade600, size: 20),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade800,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(String label, String value, IconData icon) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Colors.green.shade600, size: 20),
+              ),
+              SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade800,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoAuthorsSection() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    Icon(Icons.group, color: Colors.green.shade600, size: 20),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'الكتّاب المشاركون',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Column(
+            children: _document!.coAuthors!
+                .map((author) => Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_outline,
+                              color: Colors.grey.shade600, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            author,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCVSection() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.description,
+                    color: Colors.blue.shade600, size: 20),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'السيرة الذاتية',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'تم رفع السيرة الذاتية',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.blue.shade600,
+                  ),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _handleViewCV(),
+                icon: Icon(Icons.visibility, size: 16),
+                label: Text('عرض السيرة الذاتية'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade600,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSecretaryActionPanel() {
     final canTakeAction =
         _currentUserPosition == AppConstants.POSITION_SECRETARY &&
@@ -553,7 +899,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
                         ),
                       ),
                       Text(
-                        'مراجعة التنسيق والمتطلبات الأساسية',
+                        'نموذج التقييم الشامل',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white.withOpacity(0.9),
@@ -582,7 +928,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     if (_document!.status == AppConstants.INCOMING) {
       return _buildStartReviewAction();
     } else {
-      return _buildReviewActions();
+      return _buildEvaluationForm();
     }
   }
 
@@ -646,10 +992,10 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
-  Widget _buildReviewActions() {
+  Widget _buildEvaluationForm() {
     return Column(
       children: [
-        // Guidelines Box
+        // Information Box
         Container(
           width: double.infinity,
           padding: EdgeInsets.all(16),
@@ -668,7 +1014,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
                   Icon(Icons.info, color: Colors.orange.shade600, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    'معايير المراجعة',
+                    'نموذج التقييم الشامل',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -677,104 +1023,41 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
                   ),
                 ],
               ),
-              SizedBox(height: 12),
-              _buildGuidelineItem('فحص اكتمال البيانات الأساسية'),
-              _buildGuidelineItem('التأكد من صحة التنسيق'),
-              _buildGuidelineItem('مراجعة المتطلبات الشكلية'),
-              _buildGuidelineItem('التحقق من سلامة الملف'),
+              SizedBox(height: 8),
+              Text(
+                'يرجى تقييم المقال وفقاً للمعايير التالية وإضافة التعليقات المناسبة',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.orange.shade700,
+                ),
+              ),
             ],
           ),
         ),
 
         SizedBox(height: 24),
 
-        // Action Buttons
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionButton(
-                title: 'موافقة',
-                icon: Icons.check_circle,
-                color: Colors.green,
-                onPressed: () => _showActionDialog('approve'),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _buildActionButton(
-                title: 'رفض',
-                icon: Icons.cancel,
-                color: Colors.red,
-                onPressed: () => _showActionDialog('reject'),
-              ),
-            ),
-          ],
-        ),
-
-        SizedBox(height: 12),
-
+        // Action Button
         SizedBox(
           width: double.infinity,
-          child: _buildActionButton(
-            title: 'طلب تعديل',
-            icon: Icons.edit,
-            color: Colors.orange,
-            onPressed: () => _showActionDialog('edit'),
+          child: ElevatedButton.icon(
+            onPressed: () => _showEvaluationDialog(),
+            icon: Icon(Icons.rate_review, size: 20),
+            label: Text(
+              'بدء التقييم الشامل',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildGuidelineItem(String text) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: Colors.orange.shade400,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.orange.shade700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 20),
-      label: Text(
-        title,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
     );
   }
 
@@ -904,6 +1187,27 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     }
   }
 
+  Future<void> _handleViewCV() async {
+    if (_document?.cvUrl == null || _document!.cvUrl!.isEmpty) {
+      _showErrorSnackBar('رابط السيرة الذاتية غير متوفر');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (kIsWeb) {
+        await _openInNewTab(_document!.cvUrl!);
+      } else {
+        await _handleMobileFileView(url: _document!.cvUrl!);
+      }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في فتح السيرة الذاتية: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _handleDownloadFile() async {
     if (_document?.documentUrl == null || _document!.documentUrl!.isEmpty) {
       _showErrorSnackBar('رابط الملف غير متوفر');
@@ -990,7 +1294,8 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     }
   }
 
-  Future<void> _handleMobileFileView() async {
+  Future<void> _handleMobileFileView({String? url}) async {
+    final String fileUrl = url ?? _document!.documentUrl!;
     final String fileName = _getFileName();
     final String fileExtension = _getFileExtension();
 
@@ -1002,7 +1307,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     final String filePath = '${appDocDir.path}/$fileName';
 
     await Dio().download(
-      _document!.documentUrl!,
+      fileUrl,
       filePath,
       onReceiveProgress: (received, total) {
         if (total != -1) {
@@ -1139,76 +1444,204 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     }
   }
 
-  void _showActionDialog(String action) {
-    String title = '';
-    String description = '';
-    Color color = Colors.blue;
-
-    switch (action) {
-      case 'approve':
-        title = 'موافقة على المقال';
-        description = 'سيتم إرسال المقال لمدير التحرير للمراجعة';
-        color = Colors.green;
-        break;
-      case 'reject':
-        title = 'رفض المقال';
-        description = 'سيتم رفض المقال وإشعار المؤلف';
-        color = Colors.red;
-        break;
-      case 'edit':
-        title = 'طلب تعديل';
-        description = 'سيتم طلب تعديلات من المؤلف';
-        color = Colors.orange;
-        break;
-    }
-
+  void _showEvaluationDialog() {
     showDialog(
       context: context,
-      builder: (context) => ActionDialog(
-        title: title,
-        description: description,
-        color: color,
-        onConfirm: (comment, fileUrl, fileName) =>
-            _processAction(action, comment, fileUrl, fileName),
+      barrierDismissible: false,
+      builder: (context) => ComprehensiveEvaluationDialog(
+        document: _document!,
+        onComplete: (evaluationResult) => _processEvaluation(evaluationResult),
       ),
     );
   }
 
-  Future<void> _processAction(
-      String action, String comment, String? fileUrl, String? fileName) async {
+  Future<void> _processEvaluation(Map<String, dynamic> evaluationResult) async {
     setState(() => _isLoading = true);
 
     try {
-      String nextStatus = '';
-      switch (action) {
-        case 'approve':
-          nextStatus = AppConstants.SECRETARY_APPROVED;
-          break;
-        case 'reject':
-          nextStatus = AppConstants.SECRETARY_REJECTED;
-          break;
-        case 'edit':
-          nextStatus = AppConstants.SECRETARY_EDIT_REQUESTED;
-          break;
-      }
+      // Generate evaluation report
+      String reportContent = _generateEvaluationReport(evaluationResult);
+
+      // Upload report to Firebase Storage
+      String? reportUrl = await _uploadEvaluationReport(reportContent);
+
+      // Always send to manager with the evaluation report
+      String nextStatus = AppConstants.SECRETARY_APPROVED;
 
       await _documentService.updateDocumentStatus(
         _document!.id,
         nextStatus,
-        comment,
+        evaluationResult['comment'],
         _currentUserId!,
         _currentUserName!,
         _currentUserPosition!,
-        attachedFileUrl: fileUrl,
-        attachedFileName: fileName,
+        attachedFileUrl: reportUrl,
+        attachedFileName:
+            'تقرير_تقييم_السكرتير_${DateTime.now().millisecondsSinceEpoch}.pdf',
       );
 
       await _refreshDocument();
-      _showSuccessSnackBar('تم تنفيذ الإجراء بنجاح');
+      _showSuccessSnackBar(
+          'تم إكمال التقييم وإرسال المقال مع التقرير لمدير التحرير');
     } catch (e) {
-      _showErrorSnackBar('خطأ في تنفيذ الإجراء: $e');
+      _showErrorSnackBar('خطأ في معالجة التقييم: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  String _generateEvaluationReport(Map<String, dynamic> evaluation) {
+    String report = '''
+نموذج أسئلة – المرحلة الأولى – تقييم مقال
+
+عنوان المقال: ${_document!.about ?? 'غير محدد'}
+الزاوية/الموضوع: ${evaluation['topic'] ?? 'غير محدد'}
+الباحث ودرجته العلمية: ${_document!.fullName ?? 'غير محدد'} - ${_document!.education ?? 'غير محدد'}
+تاريخ استلام المقال: ${_formatDate(_document!.timestamp)}
+
+=== 1. الأصالة والجدة ===
+
+• هل تم نشر المقال سابقاً في أي وسيلة نشر؟
+الإجابة: ${evaluation['originalityPublished'] ?? 'غير محدد'}
+${evaluation['originalityPublishedComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['originalityPublishedComment']}' : ''}
+
+• هل توجد في المجلة موضوعات مماثلة له؟
+الإجابة: ${evaluation['originalitySimilar'] ?? 'غير محدد'}
+${evaluation['originalitySimilarComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['originalitySimilarComment']}' : ''}
+
+• هل للمقال قيمة مضافة واضحة؟
+الإجابة: ${evaluation['originalityValue'] ?? 'غير محدد'}
+${evaluation['originalityValueComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['originalityValueComment']}' : ''}
+
+=== 2. سياسات المجلة ===
+
+• هل يتوافق المقال مع سياسات المجلة وهدفها العام؟
+الإجابة: ${evaluation['policyAlignment'] ?? 'غير محدد'}
+${evaluation['policyAlignmentComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['policyAlignmentComment']}' : ''}
+
+• هل يتعلق المقال بمجال اهتمام المجلة (مثلاً: إفريقيا جنوب الصحراء)؟
+الإجابة: ${evaluation['policyRelevance'] ?? 'غير محدد'}
+${evaluation['policyRelevanceComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['policyRelevanceComment']}' : ''}
+
+=== 3. المنهجية العلمية ===
+
+• هل المعلومات والإحصاءات جديدة وحديثة؟
+الإجابة: ${evaluation['methodologyData'] ?? 'غير محدد'}
+${evaluation['methodologyDataComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['methodologyDataComment']}' : ''}
+
+• هل المصادر أصلية وموثوقة؟
+الإجابة: ${evaluation['methodologySources'] ?? 'غير محدد'}
+${evaluation['methodologySourcesComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['methodologySourcesComment']}' : ''}
+
+• هل التزم الباحث بأصول المنهجية العلمية؟
+الإجابة: ${evaluation['methodologyScientific'] ?? 'غير محدد'}
+${evaluation['methodologyScientificComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['methodologyScientificComment']}' : ''}
+
+=== 4. الكتابة والمعالجة ===
+
+• هل معالجة الموضوع متكاملة وعناصره الرئيسة متسقة؟
+الإجابة: ${evaluation['writingTreatment'] ?? 'غير محدد'}
+${evaluation['writingTreatmentComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['writingTreatmentComment']}' : ''}
+
+• هل لغة الكتابة سليمة والأسلوب مناسب لعموم القراء؟
+الإجابة: ${evaluation['writingLanguage'] ?? 'غير محدد'}
+${evaluation['writingLanguageComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['writingLanguageComment']}' : ''}
+
+• هل حجم المقال مناسب؟
+الإجابة: ${evaluation['writingSize'] ?? 'غير محدد'}
+${evaluation['writingSizeComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['writingSizeComment']}' : ''}
+
+=== رأي سكرتير التحرير ===
+
+• ما تقييم سكرتير التحرير للمقال بشكل عام؟
+${evaluation['generalEvaluation'] ?? 'غير محدد'}
+
+• هل يحتاج المقال إلى تعديلات؟ ما نوعها؟
+${evaluation['modificationsNeeded'] ?? 'غير محدد'}
+
+=== ملاحظات إضافية للمقال ===
+
+• هل الملخص يحتوي على الكلمات المفتاحية الكافية؟
+الإجابة: ${evaluation['abstractKeywords'] ?? 'غير محدد'}
+${evaluation['abstractKeywordsComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['abstractKeywordsComment']}' : ''}
+
+• هل الاستنتاجات في الملخص قابلة للقياس والتحقق؟
+الإجابة: ${evaluation['abstractConclusions'] ?? 'غير محدد'}
+${evaluation['abstractConclusionsComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['abstractConclusionsComment']}' : ''}
+
+• هل المقدمة تحتوي على منهج وصياغة إشكالية واضحة؟
+الإجابة: ${evaluation['introductionMethodology'] ?? 'غير محدد'}
+${evaluation['introductionMethodologyComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['introductionMethodologyComment']}' : ''}
+
+• هل المقدمة تشتمل على إطار مفاهيمي محدد للمفاهيم الأساسية؟
+الإجابة: ${evaluation['introductionFramework'] ?? 'غير محدد'}
+${evaluation['introductionFrameworkComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['introductionFrameworkComment']}' : ''}
+
+• هل الخاتمة تعرض النتائج بوضوح وتبين حدود الدراسة؟
+الإجابة: ${evaluation['conclusionResults'] ?? 'غير محدد'}
+${evaluation['conclusionResultsComment']?.isNotEmpty == true ? 'التعليق: ${evaluation['conclusionResultsComment']}' : ''}
+
+=== التعليق العام ===
+${evaluation['comment'] ?? 'لا يوجد تعليق'}
+
+=== القرار ===
+${_getActionText(evaluation['action'])}
+
+تم إعداد هذا التقرير بواسطة: ${_currentUserName}
+التاريخ: ${_formatDate(DateTime.now())}
+    ''';
+
+    return report;
+  }
+
+  String _getActionText(String action) {
+    switch (action) {
+      case 'send_to_manager':
+        return 'تم إرسال المقال مع تقرير التقييم إلى مدير التحرير للمراجعة';
+      default:
+        return 'غير محدد';
+    }
+  }
+
+  Future<String?> _uploadEvaluationReport(String reportContent) async {
+    try {
+      final FirebaseStorage storage = FirebaseStorage.instance;
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName =
+          'secretary_evaluation_reports/${timestamp}_evaluation_report.txt';
+
+      Reference ref = storage.ref().child(fileName);
+
+      if (kIsWeb) {
+        // Web upload
+        final bytes = reportContent.codeUnits;
+        UploadTask uploadTask = ref.putData(
+          Uint8List.fromList(bytes),
+          SettableMetadata(contentType: 'text/plain; charset=utf-8'),
+        );
+
+        TaskSnapshot snapshot = await uploadTask;
+        return await snapshot.ref.getDownloadURL();
+      } else {
+        // Mobile upload
+        final Directory tempDir = await getTemporaryDirectory();
+        final String filePath =
+            '${tempDir.path}/evaluation_report_$timestamp.txt';
+        final File file = File(filePath);
+        await file.writeAsString(reportContent,
+            encoding: Encoding.getByName('utf-8')!);
+
+        UploadTask uploadTask = ref.putFile(
+          file,
+          SettableMetadata(contentType: 'text/plain; charset=utf-8'),
+        );
+
+        TaskSnapshot snapshot = await uploadTask;
+        return await snapshot.ref.getDownloadURL();
+      }
+    } catch (e) {
+      print('Error uploading evaluation report: $e');
+      return null;
     }
   }
 
@@ -1285,267 +1718,1047 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
   }
 }
 
-// 1. Secretary Action Dialog - Updated
-class ActionDialog extends StatefulWidget {
-  final String title;
-  final String description;
-  final Color color;
-  final Function(String, String?, String?) onConfirm;
+// Updated Comprehensive Evaluation Dialog with PDF report generation
+class ComprehensiveEvaluationDialog extends StatefulWidget {
+  final DocumentModel document;
+  final Function(Map<String, dynamic>) onComplete;
 
-  const ActionDialog({
+  const ComprehensiveEvaluationDialog({
     Key? key,
-    required this.title,
-    required this.description,
-    required this.color,
-    required this.onConfirm,
+    required this.document,
+    required this.onComplete,
   }) : super(key: key);
 
   @override
-  _ActionDialogState createState() => _ActionDialogState();
+  _ComprehensiveEvaluationDialogState createState() =>
+      _ComprehensiveEvaluationDialogState();
 }
 
-class _ActionDialogState extends State<ActionDialog> {
+class _ComprehensiveEvaluationDialogState
+    extends State<ComprehensiveEvaluationDialog> {
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _commentController = TextEditingController();
-  String? _attachedFileName;
-  String? _attachedFileUrl;
-  bool _isUploading = false;
+  final TextEditingController _generalEvaluationController =
+      TextEditingController();
+  final TextEditingController _modificationsNeededController =
+      TextEditingController();
+  final TextEditingController _topicController = TextEditingController();
+
+  // Comment controllers for each question
+  final TextEditingController _originalityPublishedCommentController =
+      TextEditingController();
+  final TextEditingController _originalitySimilarCommentController =
+      TextEditingController();
+  final TextEditingController _originalityValueCommentController =
+      TextEditingController();
+  final TextEditingController _policyAlignmentCommentController =
+      TextEditingController();
+  final TextEditingController _policyRelevanceCommentController =
+      TextEditingController();
+  final TextEditingController _methodologyDataCommentController =
+      TextEditingController();
+  final TextEditingController _methodologySourcesCommentController =
+      TextEditingController();
+  final TextEditingController _methodologyScientificCommentController =
+      TextEditingController();
+  final TextEditingController _writingTreatmentCommentController =
+      TextEditingController();
+  final TextEditingController _writingLanguageCommentController =
+      TextEditingController();
+  final TextEditingController _writingSizeCommentController =
+      TextEditingController();
+  final TextEditingController _abstractKeywordsCommentController =
+      TextEditingController();
+  final TextEditingController _abstractConclusionsCommentController =
+      TextEditingController();
+  final TextEditingController _introductionMethodologyCommentController =
+      TextEditingController();
+  final TextEditingController _introductionFrameworkCommentController =
+      TextEditingController();
+  final TextEditingController _conclusionResultsCommentController =
+      TextEditingController();
+
+  // Comment visibility state for each question
+  Map<String, bool> _commentVisibility = {
+    'originalityPublished': false,
+    'originalitySimilar': false,
+    'originalityValue': false,
+    'policyAlignment': false,
+    'policyRelevance': false,
+    'methodologyData': false,
+    'methodologySources': false,
+    'methodologyScientific': false,
+    'writingTreatment': false,
+    'writingLanguage': false,
+    'writingSize': false,
+    'abstractKeywords': false,
+    'abstractConclusions': false,
+    'introductionMethodology': false,
+    'introductionFramework': false,
+    'conclusionResults': false,
+  };
+
+  // Evaluation criteria answers - Main Sections
+  String? originalityPublished;
+  String? originalitySimilar;
+  String? originalityValue;
+  String? policyAlignment;
+  String? policyRelevance;
+  String? methodologyData;
+  String? methodologySources;
+  String? methodologyScientific;
+  String? writingTreatment;
+  String? writingLanguage;
+  String? writingSize;
+
+  // Additional Notes Section
+  String? abstractKeywords;
+  String? abstractConclusions;
+  String? introductionMethodology;
+  String? introductionFramework;
+  String? conclusionResults;
+
+  bool get isFormValid {
+    return originalityPublished != null &&
+        originalitySimilar != null &&
+        originalityValue != null &&
+        policyAlignment != null &&
+        policyRelevance != null &&
+        methodologyData != null &&
+        methodologySources != null &&
+        methodologyScientific != null &&
+        writingTreatment != null &&
+        writingLanguage != null &&
+        writingSize != null &&
+        abstractKeywords != null &&
+        abstractConclusions != null &&
+        introductionMethodology != null &&
+        introductionFramework != null &&
+        conclusionResults != null &&
+        _commentController.text.trim().isNotEmpty &&
+        _generalEvaluationController.text.trim().isNotEmpty &&
+        _modificationsNeededController.text.trim().isNotEmpty;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: ui.TextDirection.rtl,
-      child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: widget.color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+      child: Dialog(
+        insetPadding: EdgeInsets.all(20),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.9,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.shade400, Colors.orange.shade600],
                   ),
-                  child: Icon(Icons.assignment, color: widget.color, size: 20),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              widget.description,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Comment field
-            Text('تعليق (مطلوب):'),
-            SizedBox(height: 8),
-            TextField(
-              controller: _commentController,
-              decoration: InputDecoration(
-                hintText: 'اكتب تعليقك أو مبررات القرار هنا...',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              maxLines: 3,
-              textAlign: TextAlign.right,
-            ),
-
-            SizedBox(height: 16),
-
-            // File attachment (optional)
-            Text('إرفاق تقرير (اختياري):'),
-            SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: InkWell(
-                onTap: _isUploading ? null : _pickFile,
                 child: Row(
                   children: [
-                    Padding(
-                      padding: EdgeInsets.all(12),
-                      child: _isUploading
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.attach_file,
-                              color: Colors.grey.shade600),
-                    ),
+                    Icon(Icons.rate_review, color: Colors.white, size: 24),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _attachedFileName ??
-                            'اختر ملف للإرفاق (تقرير المراجعة)',
+                        'نموذج أسئلة - المرحلة الأولى - تقييم مقال',
                         style: TextStyle(
-                          color: _attachedFileName != null
-                              ? Colors.black
-                              : Colors.grey.shade600,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                    if (_attachedFileName != null && !_isUploading)
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _attachedFileName = null;
-                            _attachedFileUrl = null;
-                          });
-                        },
-                        icon: Icon(Icons.close, color: Colors.red),
-                      ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close, color: Colors.white),
+                    ),
                   ],
                 ),
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'يمكنك إرفاق تقرير يوضح نتائج المراجعة ومبررات القرار (اختياري)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
+
+              // Content
+              Expanded(
+                child: Scrollbar(
+                  controller: _scrollController,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Article Basic Info
+                        _buildArticleBasicInfoSection(),
+
+                        SizedBox(height: 24),
+
+                        // 1. Originality and Novelty
+                        _buildMainSection(
+                          '1. الأصالة والجدة',
+                          [
+                            _buildQuestionItem(
+                              'هل تم نشر المقال سابقاً في أي وسيلة نشر؟',
+                              originalityPublished,
+                              (value) =>
+                                  setState(() => originalityPublished = value),
+                              'originalityPublished',
+                              _originalityPublishedCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل توجد في المجلة موضوعات مماثلة له؟',
+                              originalitySimilar,
+                              (value) =>
+                                  setState(() => originalitySimilar = value),
+                              'originalitySimilar',
+                              _originalitySimilarCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل للمقال قيمة مضافة واضحة؟',
+                              originalityValue,
+                              (value) =>
+                                  setState(() => originalityValue = value),
+                              'originalityValue',
+                              _originalityValueCommentController,
+                            ),
+                          ],
+                        ),
+
+                        // 2. Journal Policies
+                        _buildMainSection(
+                          '2. سياسات المجلة',
+                          [
+                            _buildQuestionItem(
+                              'هل يتوافق المقال مع سياسات المجلة وهدفها العام؟',
+                              policyAlignment,
+                              (value) =>
+                                  setState(() => policyAlignment = value),
+                              'policyAlignment',
+                              _policyAlignmentCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل يتعلق المقال بمجال اهتمام المجلة (مثلاً: إفريقيا جنوب الصحراء)؟',
+                              policyRelevance,
+                              (value) =>
+                                  setState(() => policyRelevance = value),
+                              'policyRelevance',
+                              _policyRelevanceCommentController,
+                            ),
+                          ],
+                        ),
+
+                        // 3. Scientific Methodology
+                        _buildMainSection(
+                          '3. المنهجية العلمية',
+                          [
+                            _buildQuestionItem(
+                              'هل المعلومات والإحصاءات جديدة وحديثة؟',
+                              methodologyData,
+                              (value) =>
+                                  setState(() => methodologyData = value),
+                              'methodologyData',
+                              _methodologyDataCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل المصادر أصلية وموثوقة؟',
+                              methodologySources,
+                              (value) =>
+                                  setState(() => methodologySources = value),
+                              'methodologySources',
+                              _methodologySourcesCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل التزم الباحث بأصول المنهجية العلمية؟',
+                              methodologyScientific,
+                              (value) =>
+                                  setState(() => methodologyScientific = value),
+                              'methodologyScientific',
+                              _methodologyScientificCommentController,
+                            ),
+                          ],
+                        ),
+
+                        // 4. Writing and Treatment
+                        _buildMainSection(
+                          '4. الكتابة والمعالجة',
+                          [
+                            _buildQuestionItem(
+                              'هل معالجة الموضوع متكاملة وعناصره الرئيسة متسقة؟',
+                              writingTreatment,
+                              (value) =>
+                                  setState(() => writingTreatment = value),
+                              'writingTreatment',
+                              _writingTreatmentCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل لغة الكتابة سليمة والأسلوب مناسب لعموم القراء؟',
+                              writingLanguage,
+                              (value) =>
+                                  setState(() => writingLanguage = value),
+                              'writingLanguage',
+                              _writingLanguageCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل حجم المقال مناسب؟',
+                              writingSize,
+                              (value) => setState(() => writingSize = value),
+                              'writingSize',
+                              _writingSizeCommentController,
+                            ),
+                          ],
+                        ),
+
+                        // Secretary Opinion Section
+                        _buildSecretaryOpinionSection(),
+
+                        SizedBox(height: 24),
+
+                        // Additional Notes Section
+                        _buildMainSection(
+                          'ملاحظات إضافية للمقال',
+                          [
+                            _buildQuestionItem(
+                              'هل الملخص يحتوي على الكلمات المفتاحية الكافية؟',
+                              abstractKeywords,
+                              (value) =>
+                                  setState(() => abstractKeywords = value),
+                              'abstractKeywords',
+                              _abstractKeywordsCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل الاستنتاجات في الملخص قابلة للقياس والتحقق؟',
+                              abstractConclusions,
+                              (value) =>
+                                  setState(() => abstractConclusions = value),
+                              'abstractConclusions',
+                              _abstractConclusionsCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل المقدمة تحتوي على منهج وصياغة إشكالية واضحة؟',
+                              introductionMethodology,
+                              (value) => setState(
+                                  () => introductionMethodology = value),
+                              'introductionMethodology',
+                              _introductionMethodologyCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل المقدمة تشتمل على إطار مفاهيمي محدد للمفاهيم الأساسية؟',
+                              introductionFramework,
+                              (value) =>
+                                  setState(() => introductionFramework = value),
+                              'introductionFramework',
+                              _introductionFrameworkCommentController,
+                            ),
+                            _buildQuestionItem(
+                              'هل الخاتمة تعرض النتائج بوضوح وتبين حدود الدراسة؟',
+                              conclusionResults,
+                              (value) =>
+                                  setState(() => conclusionResults = value),
+                              'conclusionResults',
+                              _conclusionResultsCommentController,
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: 24),
+
+                        // General Comment
+                        _buildGeneralCommentSection(),
+
+                        SizedBox(height: 24),
+
+                        // Final Decision
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء'),
+
+              // Action Buttons
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text('إلغاء'),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isFormValid ? _submitEvaluation : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade600,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: Text('إرسال التقييم'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: _canConfirm()
-                ? () {
-                    Navigator.pop(context);
-                    widget.onConfirm(
-                      _commentController.text.trim(),
-                      _attachedFileUrl,
-                      _attachedFileName,
-                    );
-                  }
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.color,
-              foregroundColor: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArticleBasicInfoSection() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'معلومات أساسية عن المقال',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade700,
             ),
-            child: Text('تأكيد'),
+          ),
+          SizedBox(height: 12),
+          _buildInfoItem('الباحث ودرجته العلمية:',
+              '${widget.document.fullName ?? 'غير محدد'} - ${widget.document.education ?? 'غير محدد'}'),
+          _buildInfoItem(
+              'تاريخ استلام المقال:', _formatDate(widget.document.timestamp)),
+          SizedBox(height: 12),
+          Text(
+            'الزاوية/الموضوع:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.blue.shade600,
+            ),
+          ),
+          SizedBox(height: 8),
+          TextField(
+            controller: _topicController,
+            decoration: InputDecoration(
+              hintText: 'اكتب الزاوية أو الموضوع الرئيسي للمقال...',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: EdgeInsets.all(12),
+            ),
+            textAlign: TextAlign.right,
           ),
         ],
       ),
     );
   }
 
-  bool _canConfirm() {
-    return _commentController.text.trim().isNotEmpty && !_isUploading;
+  Widget _buildInfoItem(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.blue.shade600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _pickFile() async {
-    setState(() => _isUploading = true);
+  Widget _buildMainSection(String title, List<Widget> questions) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade700,
+            ),
+          ),
+          SizedBox(height: 12),
+          ...questions,
+        ],
+      ),
+    );
+  }
 
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
-      );
+  Widget _buildQuestionItem(
+    String question,
+    String? value,
+    Function(String) onChanged,
+    String commentKey,
+    TextEditingController commentController,
+  ) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  question,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _commentVisibility[commentKey] =
+                        !(_commentVisibility[commentKey] ?? false);
+                  });
+                },
+                icon: Icon(
+                  _commentVisibility[commentKey] == true
+                      ? Icons.expand_less
+                      : Icons.add_comment,
+                  size: 16,
+                  color: Colors.orange.shade600,
+                ),
+                label: Text(
+                  _commentVisibility[commentKey] == true
+                      ? 'إخفاء'
+                      : 'إضافة تعليق',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade600,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size(0, 30),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: RadioListTile<String>(
+                  title: Text('نعم', style: TextStyle(fontSize: 13)),
+                  value: 'نعم',
+                  groupValue: value,
+                  onChanged: (val) => onChanged(val!),
+                  dense: true,
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: Text('لا', style: TextStyle(fontSize: 13)),
+                  value: 'لا',
+                  groupValue: value,
+                  onChanged: (val) => onChanged(val!),
+                  dense: true,
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: Text('أخرى', style: TextStyle(fontSize: 13)),
+                  value: 'أخرى',
+                  groupValue: value,
+                  onChanged: (val) => onChanged(val!),
+                  dense: true,
+                ),
+              ),
+            ],
+          ),
+          if (_commentVisibility[commentKey] == true) ...[
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: TextField(
+                controller: commentController,
+                decoration: InputDecoration(
+                  hintText: 'اكتب تعليقك هنا...',
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                maxLines: 2,
+                textAlign: TextAlign.right,
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
-      if (result != null) {
-        final file = result.files.single;
-        final fileName = file.name;
+  Widget _buildSecretaryOpinionSection() {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'رأي سكرتير التحرير',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.green.shade700,
+            ),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'ما تقييم سكرتير التحرير للمقال بشكل عام؟',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.green.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          TextField(
+            controller: _generalEvaluationController,
+            decoration: InputDecoration(
+              hintText: 'اكتب تقييمك العام للمقال...',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: EdgeInsets.all(12),
+            ),
+            maxLines: 3,
+            textAlign: TextAlign.right,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'هل يحتاج المقال إلى تعديلات؟ ما نوعها؟',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.green.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          TextField(
+            controller: _modificationsNeededController,
+            decoration: InputDecoration(
+              hintText: 'حدد التعديلات المطلوبة إن وجدت...',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: EdgeInsets.all(12),
+            ),
+            maxLines: 3,
+            textAlign: TextAlign.right,
+          ),
+        ],
+      ),
+    );
+  }
 
-        // Upload to Firebase Storage
-        final uploadResult = await _uploadFileToFirebaseStorage(file);
+  Widget _buildGeneralCommentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'التعليق العام (مطلوب)',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade800,
+          ),
+        ),
+        SizedBox(height: 8),
+        TextField(
+          controller: _commentController,
+          decoration: InputDecoration(
+            hintText: 'اكتب تعليقك العام والتوصيات النهائية...',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: EdgeInsets.all(12),
+          ),
+          maxLines: 5,
+          textAlign: TextAlign.right,
+        ),
+      ],
+    );
+  }
 
-        if (uploadResult != null) {
-          setState(() {
-            _attachedFileName = fileName;
-            _attachedFileUrl = uploadResult;
-          });
-        } else {
-          throw Exception('فشل في رفع الملف');
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('خطأ في رفع الملف: $e'),
-          backgroundColor: Colors.red,
+  Future<void> _submitEvaluation() async {
+    Map<String, dynamic> result = {
+      'topic': _topicController.text.trim(),
+      'originalityPublished': originalityPublished,
+      'originalityPublishedComment':
+          _originalityPublishedCommentController.text.trim(),
+      'originalitySimilar': originalitySimilar,
+      'originalitySimilarComment':
+          _originalitySimilarCommentController.text.trim(),
+      'originalityValue': originalityValue,
+      'originalityValueComment': _originalityValueCommentController.text.trim(),
+      'policyAlignment': policyAlignment,
+      'policyAlignmentComment': _policyAlignmentCommentController.text.trim(),
+      'policyRelevance': policyRelevance,
+      'policyRelevanceComment': _policyRelevanceCommentController.text.trim(),
+      'methodologyData': methodologyData,
+      'methodologyDataComment': _methodologyDataCommentController.text.trim(),
+      'methodologySources': methodologySources,
+      'methodologySourcesComment':
+          _methodologySourcesCommentController.text.trim(),
+      'methodologyScientific': methodologyScientific,
+      'methodologyScientificComment':
+          _methodologyScientificCommentController.text.trim(),
+      'writingTreatment': writingTreatment,
+      'writingTreatmentComment': _writingTreatmentCommentController.text.trim(),
+      'writingLanguage': writingLanguage,
+      'writingLanguageComment': _writingLanguageCommentController.text.trim(),
+      'writingSize': writingSize,
+      'writingSizeComment': _writingSizeCommentController.text.trim(),
+      'generalEvaluation': _generalEvaluationController.text.trim(),
+      'modificationsNeeded': _modificationsNeededController.text.trim(),
+      'abstractKeywords': abstractKeywords,
+      'abstractKeywordsComment': _abstractKeywordsCommentController.text.trim(),
+      'abstractConclusions': abstractConclusions,
+      'abstractConclusionsComment':
+          _abstractConclusionsCommentController.text.trim(),
+      'introductionMethodology': introductionMethodology,
+      'introductionMethodologyComment':
+          _introductionMethodologyCommentController.text.trim(),
+      'introductionFramework': introductionFramework,
+      'introductionFrameworkComment':
+          _introductionFrameworkCommentController.text.trim(),
+      'conclusionResults': conclusionResults,
+      'conclusionResultsComment':
+          _conclusionResultsCommentController.text.trim(),
+      'comment': _commentController.text.trim(),
+      'action': 'send_to_manager', // الملف سيرسل للمدير في جميع الأحوال
+      // Add basic doc info for the PDF header
+      'doc_fullName': widget.document.fullName,
+      'doc_education': widget.document.education,
+      'doc_receivedDate': _formatDate(widget.document.timestamp),
+      'generated_at': _formatDate(DateTime.now()),
+    };
+
+    // 1) Generate & preview/share the PDF
+    final pdfBytes = await _buildPdfReport(result);
+    await Printing.layoutPdf(onLayout: (_) async => pdfBytes);
+
+    // 2) Return the result to your flow (you can also include pdfBytes if needed)
+    Navigator.pop(context);
+    widget.onComplete(result);
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // =========================
+  //      PDF GENERATION
+  // =========================
+
+  // NO font assets used here
+  Future<Uint8List> _buildPdfReport(Map<String, dynamic> data) async {
+    final doc = pw.Document();
+
+    // Use default built-in font (Helvetica). No custom font is loaded.
+    final h1 = pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold);
+    final h2 = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
+    final body = pw.TextStyle(fontSize: 11);
+
+    pw.Widget qaBox(String q, String? a, String notes) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(6),
+        ),
+        margin: const pw.EdgeInsets.only(bottom: 6),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('س: $q',
+                style: body.copyWith(fontWeight: pw.FontWeight.bold)),
+            if (a != null) pw.SizedBox(height: 2),
+            if (a != null) pw.Text('الإجابة: $a', style: body),
+            if (notes.trim().isNotEmpty) pw.SizedBox(height: 2),
+            if (notes.trim().isNotEmpty)
+              pw.Text('ملاحظات: $notes', style: body),
+          ],
         ),
       );
-    } finally {
-      setState(() => _isUploading = false);
     }
-  }
 
-  Future<String?> _uploadFileToFirebaseStorage(PlatformFile file) async {
-    try {
-      final FirebaseStorage storage = FirebaseStorage.instance;
-      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final String fileName = 'secretary_reports/${timestamp}_${file.name}';
+    final sections = <Map<String, dynamic>>[
+      {
+        'title': 'الأصالة والجدة',
+        'items': [
+          {
+            'q': 'هل تم نشر المقال سابقاً في أي وسيلة نشر؟',
+            'a': data['originalityPublished'],
+            'n': data['originalityPublishedComment'] ?? ''
+          },
+          {
+            'q': 'هل توجد في المجلة موضوعات مماثلة له؟',
+            'a': data['originalitySimilar'],
+            'n': data['originalitySimilarComment'] ?? ''
+          },
+          {
+            'q': 'هل للمقال قيمة مضافة واضحة؟',
+            'a': data['originalityValue'],
+            'n': data['originalityValueComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'سياسات المجلة',
+        'items': [
+          {
+            'q': 'هل يتوافق المقال مع سياسات المجلة وهدفها العام؟',
+            'a': data['policyAlignment'],
+            'n': data['policyAlignmentComment'] ?? ''
+          },
+          {
+            'q':
+                'هل يتعلق المقال بمجال اهتمام المجلة (مثلاً: إفريقيا جنوب الصحراء)؟',
+            'a': data['policyRelevance'],
+            'n': data['policyRelevanceComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'المنهجية العلمية',
+        'items': [
+          {
+            'q': 'هل المعلومات والإحصاءات جديدة وحديثة؟',
+            'a': data['methodologyData'],
+            'n': data['methodologyDataComment'] ?? ''
+          },
+          {
+            'q': 'هل المصادر أصلية وموثوقة؟',
+            'a': data['methodologySources'],
+            'n': data['methodologySourcesComment'] ?? ''
+          },
+          {
+            'q': 'هل التزم الباحث بأصول المنهجية العلمية؟',
+            'a': data['methodologyScientific'],
+            'n': data['methodologyScientificComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'الكتابة والمعالجة',
+        'items': [
+          {
+            'q': 'هل معالجة الموضوع متكاملة وعناصره الرئيسة متسقة؟',
+            'a': data['writingTreatment'],
+            'n': data['writingTreatmentComment'] ?? ''
+          },
+          {
+            'q': 'هل لغة الكتابة سليمة والأسلوب مناسب لعموم القراء؟',
+            'a': data['writingLanguage'],
+            'n': data['writingLanguageComment'] ?? ''
+          },
+          {
+            'q': 'هل حجم المقال مناسب؟',
+            'a': data['writingSize'],
+            'n': data['writingSizeComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'ملاحظات إضافية للمقال',
+        'items': [
+          {
+            'q': 'هل الملخص يحتوي على الكلمات المفتاحية الكافية؟',
+            'a': data['abstractKeywords'],
+            'n': data['abstractKeywordsComment'] ?? ''
+          },
+          {
+            'q': 'هل الاستنتاجات في الملخص قابلة للقياس والتحقق؟',
+            'a': data['abstractConclusions'],
+            'n': data['abstractConclusionsComment'] ?? ''
+          },
+          {
+            'q': 'هل المقدمة تحتوي على منهج وصياغة إشكالية واضحة؟',
+            'a': data['introductionMethodology'],
+            'n': data['introductionMethodologyComment'] ?? ''
+          },
+          {
+            'q': 'هل المقدمة تشتمل على إطار مفاهيمي محدد للمفاهيم الأساسية؟',
+            'a': data['introductionFramework'],
+            'n': data['introductionFrameworkComment'] ?? ''
+          },
+          {
+            'q': 'هل الخاتمة تعرض النتائج بوضوح وتبين حدود الدراسة؟',
+            'a': data['conclusionResults'],
+            'n': data['conclusionResultsComment'] ?? ''
+          },
+        ],
+      },
+    ];
 
-      Reference ref = storage.ref().child(fileName);
-
-      if (kIsWeb) {
-        // Web upload
-        if (file.bytes != null) {
-          UploadTask uploadTask = ref.putData(
-            file.bytes!,
-            SettableMetadata(
-                contentType: _getContentType(file.extension ?? '')),
-          );
-
-          TaskSnapshot snapshot = await uploadTask;
-          return await snapshot.ref.getDownloadURL();
-        }
-      } else {
-        // Mobile upload
-        if (file.path != null) {
-          File uploadFile = File(file.path!);
-          UploadTask uploadTask = ref.putFile(
-            uploadFile,
-            SettableMetadata(
-                contentType: _getContentType(file.extension ?? '')),
-          );
-
-          TaskSnapshot snapshot = await uploadTask;
-          return await snapshot.ref.getDownloadURL();
-        }
-      }
-
-      return null;
-    } catch (e) {
-      print('Error uploading file to Firebase Storage: $e');
-      return null;
+    pw.Widget metaGrid(List<List<String>> rows) {
+      return pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey300),
+        columnWidths: const {
+          0: pw.FlexColumnWidth(1.2),
+          1: pw.FlexColumnWidth(2.2),
+        },
+        children: [
+          for (final r in rows)
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(r[0],
+                      style: body.copyWith(fontWeight: pw.FontWeight.bold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(r[1], style: body),
+                ),
+              ],
+            ),
+        ],
+      );
     }
-  }
 
-  String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      default:
-        return 'application/octet-stream';
+    pw.Widget boxed(String title, String text) {
+      final shown = (text.trim().isEmpty) ? '—' : text.trim();
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(title, style: h2),
+          pw.SizedBox(height: 6),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+              borderRadius: pw.BorderRadius.circular(6),
+            ),
+            child: pw.Text(shown, style: body),
+          ),
+        ],
+      );
     }
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        build: (context) => [
+          // Keep RTL direction, even with default font (shaping may not occur)
+          pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Text('تقرير تقييم المقال – المرحلة الأولى', style: h1),
+                pw.SizedBox(height: 6),
+                pw.Divider(),
+                pw.SizedBox(height: 6),
+                metaGrid([
+                  [
+                    'الباحث ودرجته العلمية',
+                    '${data['doc_fullName'] ?? '—'} - ${data['doc_education'] ?? '—'}'
+                  ],
+                  ['تاريخ الاستلام', data['doc_receivedDate'] ?? '—'],
+                  ['الزاوية/الموضوع', data['topic'] ?? '—'],
+                  ['تاريخ إنشاء التقرير', data['generated_at'] ?? '—'],
+                ]),
+                pw.SizedBox(height: 12),
+                for (final s in sections) ...[
+                  pw.Text('• ${s['title']}', style: h2),
+                  pw.SizedBox(height: 6),
+                  ...(s['items'] as List).map<pw.Widget>(
+                      (it) => qaBox(it['q'], it['a'], (it['n'] ?? ''))),
+                  pw.SizedBox(height: 10),
+                ],
+                boxed('رأي سكرتير التحرير', data['generalEvaluation'] ?? ''),
+                pw.SizedBox(height: 8),
+                boxed('التعديلات المطلوبة', data['modificationsNeeded'] ?? ''),
+                pw.SizedBox(height: 8),
+                boxed('التعليق العام', data['comment'] ?? ''),
+                pw.SizedBox(height: 16),
+                pw.Divider(),
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Text('— نهاية التقرير —',
+                      style: body.copyWith(color: PdfColors.grey600)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return doc.save();
   }
 }
+
+// ======= Keep your DocumentModel as-is in your project =======
+// Example shape used above:
+// class DocumentModel {
+//   final String? fullName;
+//   final String? education;
+//   final DateTime timestamp;
+//   // String? title; // if you have it, you can add it to the PDF
+//   DocumentModel({this.fullName, this.education, required this.timestamp});
+// }

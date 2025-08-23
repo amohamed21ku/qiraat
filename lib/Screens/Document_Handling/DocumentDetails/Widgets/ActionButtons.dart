@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../Classes/current_user_providerr.dart';
 
-import '../Constants/App_Constants.dart';
-import '../models/document_model.dart';
+import '../../../../App_Constants.dart';
+import '../../../../models/document_model.dart';
 
 class ActionButtonsWidget extends StatelessWidget {
   final String status;

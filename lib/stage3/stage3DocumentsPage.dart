@@ -1,24 +1,27 @@
-// pages/Stage2/Stage2DocumentsPage.dart - Updated with proper Stage1 to Stage2 flow
+// pages/Stage3/Stage3DocumentsPage.dart - Stage 3 Production Workflow
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:qiraat/stage2/stage2HeadEditor.dart';
-import 'package:qiraat/stage2/stage2LanguageEditorPage.dart';
-import 'package:qiraat/stage2/stage2Reviewer.dart';
+import 'package:qiraat/stage3/stage3FinalReviewerPage.dart';
+import 'package:qiraat/stage3/stage3HeadEditorPage.dart';
+import 'package:qiraat/stage3/stage3LayoutDesign.dart';
 import 'dart:ui' as ui;
 
 import '../../Classes/current_user_providerr.dart';
 import '../App_Constants.dart';
 import '../Document_Services.dart';
 import '../models/document_model.dart';
-import '../models/reviewerModel.dart';
-import 'Stage2ChefEditorLanguageReview.dart';
+import 'Stage3ManagingEditor.dart';
+// Import Stage 3 detail pages
+// import 'Stage3FinalReviewerPage.dart';
+// import 'Stage3HeadEditorPage.dart';
+// import 'Stage3ManagingEditorPage.dart';
 
-class Stage2DocumentsPage extends StatefulWidget {
+class Stage3DocumentsPage extends StatefulWidget {
   @override
-  _Stage2DocumentsPageState createState() => _Stage2DocumentsPageState();
+  _Stage3DocumentsPageState createState() => _Stage3DocumentsPageState();
 }
 
-class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
+class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
     with TickerProviderStateMixin {
   final DocumentService _documentService = DocumentService();
 
@@ -41,35 +44,35 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   final List<Map<String, dynamic>> _filterOptions = [
     {'key': 'all', 'title': 'جميع المقالات', 'icon': Icons.all_inclusive},
     {
-      'key': 'ready_for_assignment',
-      'title': 'جاهز لتعيين المحكمين',
-      'icon': Icons.assignment_ind
+      'key': 'ready_for_layout',
+      'title': 'جاهز للإخراج الفني',
+      'icon': Icons.design_services
     },
-    {'key': 'under_review', 'title': 'تحت التحكيم', 'icon': Icons.rate_review},
+    {'key': 'in_layout', 'title': 'في الإخراج الفني', 'icon': Icons.palette},
     {
-      'key': 'review_completed',
-      'title': 'انتهى التحكيم',
-      'icon': Icons.check_circle
-    },
-    {
-      'key': 'head_review',
-      'title': 'مراجعة رئيس التحرير',
-      'icon': Icons.admin_panel_settings
-    },
-    // Language editing filters
-    {
-      'key': 'language_editing',
-      'title': 'التدقيق اللغوي',
-      'icon': Icons.spellcheck
+      'key': 'layout_review',
+      'title': 'مراجعة الإخراج',
+      'icon': Icons.rate_review
     },
     {
-      'key': 'chef_language_review',
-      'title': 'مراجعة مدير التحرير',
-      'icon': Icons.supervisor_account
+      'key': 'final_review',
+      'title': 'المراجعة النهائية',
+      'icon': Icons.fact_check
     },
-    {'key': 'my_reviews', 'title': 'مراجعاتي', 'icon': Icons.person},
-    {'key': 'completed', 'title': 'مكتملة', 'icon': Icons.verified},
+    {
+      'key': 'final_modifications',
+      'title': 'التعديلات النهائية',
+      'icon': Icons.edit
+    },
+    {
+      'key': 'final_approval',
+      'title': 'الاعتماد النهائي',
+      'icon': Icons.verified_user
+    },
+    {'key': 'published', 'title': 'منشور', 'icon': Icons.publish},
+    {'key': 'my_tasks', 'title': 'مهامي', 'icon': Icons.person},
   ];
+
   @override
   void initState() {
     super.initState();
@@ -104,16 +107,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   }
 
   void _initializeDocumentsStream() {
-    if (_isHeadEditor()) {
-      // Head editor sees all Stage 2 documents AND Stage 1 approved documents
-      _documentsStream = _documentService.getStage2DocumentsStream();
-    } else if (_isReviewer()) {
-      // Reviewers see all Stage 2 documents but with different permissions
-      _documentsStream = _documentService.getStage2DocumentsStream();
-    } else {
-      // Other users see Stage 2 documents they have access to
-      _documentsStream = _documentService.getStage2DocumentsStream();
-    }
+    _documentsStream = _documentService.getStage3DocumentsStream();
 
     _documentsStream!.listen((documents) {
       if (mounted) {
@@ -126,13 +120,21 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     });
   }
 
+  bool _isLayoutDesigner() {
+    return _currentUserPosition == AppConstants.POSITION_LAYOUT_DESIGNER;
+  }
+
+  bool _isFinalReviewer() {
+    return _currentUserPosition == AppConstants.POSITION_FINAL_REVIEWER;
+  }
+
   bool _isHeadEditor() {
     return _currentUserPosition == AppConstants.POSITION_HEAD_EDITOR;
   }
 
-  bool _isReviewer() {
-    return _currentUserPosition?.contains('محكم') == true ||
-        _currentUserPosition == AppConstants.POSITION_REVIEWER;
+  bool _isManagingEditor() {
+    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+        _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF;
   }
 
   void _applyFilters() {
@@ -147,37 +149,35 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     if (_selectedFilter != 'all') {
       filtered = filtered.where((doc) {
         switch (_selectedFilter) {
-          case 'ready_for_assignment':
-            return doc.status == AppConstants.STAGE1_APPROVED;
-          case 'under_review':
+          case 'ready_for_layout':
+            return doc.status == AppConstants.STAGE2_APPROVED;
+          case 'in_layout':
             return [
-              AppConstants.REVIEWERS_ASSIGNED,
-              AppConstants.UNDER_PEER_REVIEW,
+              AppConstants.LAYOUT_DESIGN_STAGE3,
+              AppConstants.LAYOUT_REVISION_REQUESTED,
             ].contains(doc.status);
-          case 'review_completed':
-            return doc.status == AppConstants.PEER_REVIEW_COMPLETED;
-          case 'head_review':
-            return doc.status == AppConstants.HEAD_REVIEW_STAGE2;
-          case 'language_editing':
-            return doc.status == AppConstants.LANGUAGE_EDITING_STAGE2;
-          case 'chef_language_review':
+          case 'layout_review':
             return [
-              AppConstants.LANGUAGE_EDITOR_COMPLETED,
-              AppConstants.CHEF_REVIEW_LANGUAGE_EDIT,
+              AppConstants.LAYOUT_DESIGN_COMPLETED,
+              AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+              AppConstants.HEAD_EDITOR_FIRST_REVIEW,
             ].contains(doc.status);
-          case 'my_reviews':
-            // Show only documents where current user is assigned as reviewer
-            return _isReviewer() &&
-                doc.reviewers.isNotEmpty &&
-                doc.reviewers
-                    .any((reviewer) => reviewer.userId == _currentUserId);
-          case 'completed':
+          case 'final_review':
+            return doc.status == AppConstants.FINAL_REVIEW_STAGE;
+          case 'final_modifications':
             return [
-              AppConstants.STAGE2_APPROVED,
-              AppConstants.STAGE2_REJECTED,
-              AppConstants.STAGE2_EDIT_REQUESTED,
-              AppConstants.STAGE2_WEBSITE_APPROVED,
+              AppConstants.FINAL_REVIEW_COMPLETED,
+              AppConstants.FINAL_MODIFICATIONS,
             ].contains(doc.status);
+          case 'final_approval':
+            return [
+              AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+              AppConstants.HEAD_EDITOR_FINAL_APPROVAL,
+            ].contains(doc.status);
+          case 'published':
+            return doc.status == AppConstants.PUBLISHED;
+          case 'my_tasks':
+            return _getMyTasks().contains(doc.status);
           default:
             return true;
         }
@@ -197,29 +197,48 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
       }).toList();
     }
 
-    // Sort by priority
+    // Sort by priority based on user role
     filtered.sort((a, b) {
-      // Language editing documents get high priority for appropriate users
-      if (_currentUserPosition == AppConstants.POSITION_LANGUAGE_EDITOR) {
-        if (a.status == AppConstants.LANGUAGE_EDITING_STAGE2 &&
-            b.status != AppConstants.LANGUAGE_EDITING_STAGE2) return -1;
-        if (b.status == AppConstants.LANGUAGE_EDITING_STAGE2 &&
-            a.status != AppConstants.LANGUAGE_EDITING_STAGE2) return 1;
+      // User-specific priority sorting
+      if (_isLayoutDesigner()) {
+        if (a.status == AppConstants.LAYOUT_DESIGN_STAGE3 &&
+            b.status != AppConstants.LAYOUT_DESIGN_STAGE3) return -1;
+        if (b.status == AppConstants.LAYOUT_DESIGN_STAGE3 &&
+            a.status != AppConstants.LAYOUT_DESIGN_STAGE3) return 1;
+        if (a.status == AppConstants.FINAL_MODIFICATIONS &&
+            b.status != AppConstants.FINAL_MODIFICATIONS) return -1;
+        if (b.status == AppConstants.FINAL_MODIFICATIONS &&
+            a.status != AppConstants.FINAL_MODIFICATIONS) return 1;
       }
 
-      if (_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-          _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) {
-        if (a.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
-            b.status != AppConstants.CHEF_REVIEW_LANGUAGE_EDIT) return -1;
-        if (b.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
-            a.status != AppConstants.CHEF_REVIEW_LANGUAGE_EDIT) return 1;
+      if (_isFinalReviewer()) {
+        if (a.status == AppConstants.FINAL_REVIEW_STAGE &&
+            b.status != AppConstants.FINAL_REVIEW_STAGE) return -1;
+        if (b.status == AppConstants.FINAL_REVIEW_STAGE &&
+            a.status != AppConstants.FINAL_REVIEW_STAGE) return 1;
       }
 
-      // Stage1_approved documents get highest priority for head editor
-      if (a.status == AppConstants.STAGE1_APPROVED &&
-          b.status != AppConstants.STAGE1_APPROVED) return -1;
-      if (b.status == AppConstants.STAGE1_APPROVED &&
-          a.status != AppConstants.STAGE1_APPROVED) return 1;
+      if (_isManagingEditor()) {
+        if (a.status == AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT &&
+            b.status != AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT) return -1;
+        if (b.status == AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT &&
+            a.status != AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT) return 1;
+        if (a.status == AppConstants.MANAGING_EDITOR_FINAL_CHECK &&
+            b.status != AppConstants.MANAGING_EDITOR_FINAL_CHECK) return -1;
+        if (b.status == AppConstants.MANAGING_EDITOR_FINAL_CHECK &&
+            a.status != AppConstants.MANAGING_EDITOR_FINAL_CHECK) return 1;
+      }
+
+      if (_isHeadEditor()) {
+        if (a.status == AppConstants.STAGE2_APPROVED &&
+            b.status != AppConstants.STAGE2_APPROVED) return -1;
+        if (b.status == AppConstants.STAGE2_APPROVED &&
+            a.status != AppConstants.STAGE2_APPROVED) return 1;
+        if (a.status == AppConstants.HEAD_EDITOR_FINAL_APPROVAL &&
+            b.status != AppConstants.HEAD_EDITOR_FINAL_APPROVAL) return -1;
+        if (b.status == AppConstants.HEAD_EDITOR_FINAL_APPROVAL &&
+            a.status != AppConstants.HEAD_EDITOR_FINAL_APPROVAL) return 1;
+      }
 
       // Then sort by timestamp (newest first)
       return b.timestamp.compareTo(a.timestamp);
@@ -228,6 +247,30 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     setState(() {
       _filteredDocuments = filtered;
     });
+  }
+
+  List<String> _getMyTasks() {
+    if (_isLayoutDesigner()) {
+      return [
+        AppConstants.LAYOUT_DESIGN_STAGE3,
+        AppConstants.LAYOUT_REVISION_REQUESTED,
+        AppConstants.FINAL_MODIFICATIONS,
+      ];
+    } else if (_isFinalReviewer()) {
+      return [AppConstants.FINAL_REVIEW_STAGE];
+    } else if (_isManagingEditor()) {
+      return [
+        AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+        AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+      ];
+    } else if (_isHeadEditor()) {
+      return [
+        AppConstants.STAGE2_APPROVED,
+        AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+        AppConstants.HEAD_EDITOR_FINAL_APPROVAL,
+      ];
+    }
+    return [];
   }
 
   @override
@@ -257,13 +300,23 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   }
 
   Widget _buildHeader() {
+    Color headerColor = _isLayoutDesigner()
+        ? Colors.purple.shade600
+        : _isFinalReviewer()
+            ? Colors.indigo.shade600
+            : Colors.deepPurple.shade600;
+
+    IconData headerIcon = _isLayoutDesigner()
+        ? Icons.design_services
+        : _isFinalReviewer()
+            ? Icons.fact_check
+            : Icons.publish;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 50, 20, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _isReviewer()
-              ? [Colors.teal.shade600, Colors.teal.shade800]
-              : [Colors.indigo.shade600, Colors.indigo.shade800],
+          colors: [headerColor, headerColor.withOpacity(0.8)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -292,9 +345,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _isReviewer()
-                      ? Icons.rate_review
-                      : Icons.admin_panel_settings,
+                  headerIcon,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -305,7 +356,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'المرحلة الثانية',
+                      'المرحلة الثالثة',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -313,9 +364,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                       ),
                     ),
                     Text(
-                      _isReviewer()
-                          ? 'التحكيم العلمي والمراجعة المتخصصة'
-                          : 'إدارة التحكيم العلمي والمراجعة',
+                      _getUserRoleDescription(),
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white.withOpacity(0.9),
@@ -341,53 +390,60 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             ],
           ),
           SizedBox(height: 24),
-          _buildStage2OverviewStats(),
+          _buildStage3OverviewStats(),
         ],
       ),
     );
   }
 
-// Updated _buildStage2OverviewStats method in stage2documetspage.dart
+  String _getUserRoleDescription() {
+    if (_isLayoutDesigner()) {
+      return 'الإخراج الفني والتصميم النهائي';
+    } else if (_isFinalReviewer()) {
+      return 'المراجعة والتدقيق النهائي';
+    } else if (_isManagingEditor()) {
+      return 'إدارة الإنتاج والمراجعة النهائية';
+    } else if (_isHeadEditor()) {
+      return 'الإشراف والاعتماد النهائي للنشر';
+    } else {
+      return 'الإنتاج النهائي والنشر';
+    }
+  }
 
-  Widget _buildStage2OverviewStats() {
+  Widget _buildStage3OverviewStats() {
     if (_allDocuments.isEmpty) return SizedBox.shrink();
 
-    // Count documents by status with special attention to language editing
-    final readyForAssignment = _allDocuments
-        .where((doc) => doc.status == AppConstants.STAGE1_APPROVED)
+    // Count documents by status
+    final readyForLayout = _allDocuments
+        .where((doc) => doc.status == AppConstants.STAGE2_APPROVED)
         .length;
-    final underReview = _allDocuments
+    final inLayout = _allDocuments
         .where((doc) => [
-              AppConstants.REVIEWERS_ASSIGNED,
-              AppConstants.UNDER_PEER_REVIEW
+              AppConstants.LAYOUT_DESIGN_STAGE3,
+              AppConstants.LAYOUT_REVISION_REQUESTED
             ].contains(doc.status))
         .length;
-    final reviewCompleted = _allDocuments
-        .where((doc) => doc.status == AppConstants.PEER_REVIEW_COMPLETED)
-        .length;
-    final headReview = _allDocuments
-        .where((doc) => doc.status == AppConstants.HEAD_REVIEW_STAGE2)
-        .length;
-
-    // Language editing counts
-    final languageEditing = _allDocuments
-        .where((doc) => doc.status == AppConstants.LANGUAGE_EDITING_STAGE2)
-        .length;
-    final chefLanguageReview = _allDocuments
+    final inReview = _allDocuments
         .where((doc) => [
-              AppConstants.LANGUAGE_EDITOR_COMPLETED,
-              AppConstants.CHEF_REVIEW_LANGUAGE_EDIT,
+              AppConstants.LAYOUT_DESIGN_COMPLETED,
+              AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+              AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+              AppConstants.FINAL_REVIEW_STAGE,
             ].contains(doc.status))
         .length;
+    final inFinalStages = _allDocuments
+        .where((doc) => [
+              AppConstants.FINAL_MODIFICATIONS,
+              AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+              AppConstants.HEAD_EDITOR_FINAL_APPROVAL,
+            ].contains(doc.status))
+        .length;
+    final published = _allDocuments
+        .where((doc) => doc.status == AppConstants.PUBLISHED)
+        .length;
 
-    final myReviews = _isReviewer()
-        ? _allDocuments
-            .where((doc) =>
-                doc.reviewers.isNotEmpty &&
-                doc.reviewers
-                    .any((reviewer) => reviewer.userId == _currentUserId))
-            .length
-        : 0;
+    final myTasks =
+        _allDocuments.where((doc) => _getMyTasks().contains(doc.status)).length;
 
     return Container(
       padding: EdgeInsets.all(16),
@@ -398,21 +454,47 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
       ),
       child: Row(
         children: [
-          if (_isHeadEditor()) ...[
+          if (_isLayoutDesigner()) ...[
             Expanded(
               child: _buildStatItem(
-                'جاهز للتعيين',
-                readyForAssignment.toString(),
-                Icons.assignment_ind,
+                'مهامي',
+                myTasks.toString(),
+                Icons.design_services,
                 Colors.white,
-                subtitle: 'من المرحلة الأولى',
               ),
             ),
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'تحت التحكيم',
-                underReview.toString(),
+                'في الإخراج',
+                inLayout.toString(),
+                Icons.palette,
+                Colors.white,
+              ),
+            ),
+            _buildDivider(),
+            Expanded(
+              child: _buildStatItem(
+                'تعديلات نهائية',
+                inFinalStages.toString(),
+                Icons.edit,
+                Colors.white,
+              ),
+            ),
+          ] else if (_isFinalReviewer()) ...[
+            Expanded(
+              child: _buildStatItem(
+                'للمراجعة النهائية',
+                myTasks.toString(),
+                Icons.fact_check,
+                Colors.white,
+              ),
+            ),
+            _buildDivider(),
+            Expanded(
+              child: _buildStatItem(
+                'في المراجعة',
+                inReview.toString(),
                 Icons.rate_review,
                 Colors.white,
               ),
@@ -420,38 +502,17 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'تدقيق لغوي',
-                (languageEditing + chefLanguageReview).toString(),
-                Icons.spellcheck,
+                'منشور',
+                published.toString(),
+                Icons.publish,
                 Colors.white,
               ),
             ),
-          ] else if (_currentUserPosition ==
-              AppConstants.POSITION_LANGUAGE_EDITOR) ...[
+          ] else if (_isManagingEditor()) ...[
             Expanded(
               child: _buildStatItem(
-                'للتدقيق اللغوي',
-                languageEditing.toString(),
-                Icons.spellcheck,
-                Colors.white,
-              ),
-            ),
-            _buildDivider(),
-            Expanded(
-              child: _buildStatItem(
-                'المجموع',
-                _allDocuments.length.toString(),
-                Icons.library_books,
-                Colors.white,
-              ),
-            ),
-          ] else if (_currentUserPosition ==
-                  AppConstants.POSITION_MANAGING_EDITOR ||
-              _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) ...[
-            Expanded(
-              child: _buildStatItem(
-                'مراجعة التدقيق',
-                chefLanguageReview.toString(),
+                'للمراجعة',
+                myTasks.toString(),
                 Icons.supervisor_account,
                 Colors.white,
               ),
@@ -459,45 +520,46 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'تحت التحكيم',
-                underReview.toString(),
-                Icons.rate_review,
+                'في الإخراج',
+                inLayout.toString(),
+                Icons.design_services,
                 Colors.white,
               ),
             ),
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'جاهز للقرار',
-                (reviewCompleted + headReview).toString(),
-                Icons.check_circle,
+                'للاعتماد النهائي',
+                inFinalStages.toString(),
+                Icons.verified_user,
                 Colors.white,
               ),
             ),
-          ] else if (_isReviewer()) ...[
+          ] else if (_isHeadEditor()) ...[
             Expanded(
               child: _buildStatItem(
-                'مراجعاتي',
-                myReviews.toString(),
-                Icons.person,
+                'جاهز للإخراج',
+                readyForLayout.toString(),
+                Icons.design_services,
+                Colors.white,
+                subtitle: 'من المرحلة الثانية',
+              ),
+            ),
+            _buildDivider(),
+            Expanded(
+              child: _buildStatItem(
+                'للاعتماد النهائي',
+                myTasks.toString(),
+                Icons.verified_user,
                 Colors.white,
               ),
             ),
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'قيد المراجعة',
-                underReview.toString(),
-                Icons.rate_review,
-                Colors.white,
-              ),
-            ),
-            _buildDivider(),
-            Expanded(
-              child: _buildStatItem(
-                'مكتملة',
-                reviewCompleted.toString(),
-                Icons.check_circle,
+                'منشور',
+                published.toString(),
+                Icons.publish,
                 Colors.white,
               ),
             ),
@@ -513,15 +575,19 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             _buildDivider(),
             Expanded(
               child: _buildStatItem(
-                'نشطة',
-                (readyForAssignment +
-                        underReview +
-                        reviewCompleted +
-                        headReview +
-                        languageEditing +
-                        chefLanguageReview)
+                'في الإنتاج',
+                (readyForLayout + inLayout + inReview + inFinalStages)
                     .toString(),
-                Icons.trending_up,
+                Icons.settings,
+                Colors.white,
+              ),
+            ),
+            _buildDivider(),
+            Expanded(
+              child: _buildStatItem(
+                'منشور',
+                published.toString(),
+                Icons.publish,
                 Colors.white,
               ),
             ),
@@ -585,8 +651,8 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     // Filter available options based on user role
     List<Map<String, dynamic>> availableFilters =
         _filterOptions.where((filter) {
-      if (filter['key'] == 'my_reviews') {
-        return _isReviewer();
+      if (filter['key'] == 'my_tasks') {
+        return _getMyTasks().isNotEmpty;
       }
       return true;
     }).toList();
@@ -638,13 +704,12 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             child: Row(
               children: availableFilters.map((filter) {
                 final isSelected = _selectedFilter == filter['key'];
-                final color = _isReviewer() ? Colors.teal : Colors.indigo;
+                final color = Colors.deepPurple;
 
-                // Special styling for 'ready_for_assignment' when it has Stage1_approved documents
-                bool hasReadyDocuments = filter['key'] ==
-                        'ready_for_assignment' &&
+                // Special styling for ready documents
+                bool hasReadyDocuments = filter['key'] == 'ready_for_layout' &&
                     _allDocuments.any(
-                        (doc) => doc.status == AppConstants.STAGE1_APPROVED);
+                        (doc) => doc.status == AppConstants.STAGE2_APPROVED);
 
                 return Container(
                   margin: EdgeInsets.only(left: 6),
@@ -754,8 +819,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              color:
-                  _isReviewer() ? Colors.teal.shade600 : Colors.indigo.shade600,
+              color: Colors.deepPurple.shade600,
             ),
             SizedBox(height: 20),
             Text(
@@ -785,16 +849,16 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   }
 
   Widget _buildEmptyState() {
-    String emptyMessage = _selectedFilter == 'ready_for_assignment'
-        ? 'لا توجد مقالات جاهزة لتعيين المحكمين'
-        : _selectedFilter == 'my_reviews'
-            ? 'لا توجد مراجعات مخصصة لك'
-            : 'لا توجد مستندات للتحكيم';
+    String emptyMessage = _selectedFilter == 'ready_for_layout'
+        ? 'لا توجد مقالات جاهزة للإخراج الفني'
+        : _selectedFilter == 'my_tasks'
+            ? 'لا توجد مهام معينة لك'
+            : 'لا توجد مستندات للإنتاج';
 
-    String emptyDescription = _selectedFilter == 'ready_for_assignment'
-        ? 'لم تصل أي مقالات معتمدة من المرحلة الأولى بعد'
-        : _selectedFilter == 'my_reviews'
-            ? 'لم يتم تعيين أي مقالات لك للمراجعة حتى الآن'
+    String emptyDescription = _selectedFilter == 'ready_for_layout'
+        ? 'لم تصل أي مقالات معتمدة من المرحلة الثانية بعد'
+        : _selectedFilter == 'my_tasks'
+            ? 'لم يتم تعيين أي مقالات لك حتى الآن'
             : 'لم يتم العثور على مستندات تطابق المعايير المحددة';
 
     return Center(
@@ -808,9 +872,9 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
-              _selectedFilter == 'ready_for_assignment'
-                  ? Icons.assignment_ind_outlined
-                  : Icons.rate_review_outlined,
+              _selectedFilter == 'ready_for_layout'
+                  ? Icons.design_services_outlined
+                  : Icons.article_outlined,
               size: 64,
               color: Colors.grey.shade400,
             ),
@@ -839,25 +903,15 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   }
 
   Widget _buildDocumentCard(DocumentModel document, int index) {
-    final statusColor = AppStyles.getStage2StatusColor(document.status);
-    final statusIcon = AppStyles.getStage2StatusIcon(document.status);
+    final statusColor = AppStyles.getStage3StatusColor(document.status);
+    final statusIcon = AppStyles.getStage3StatusIcon(document.status);
     final statusName = AppStyles.getStatusDisplayName(document.status);
 
-    // Check if current user is assigned as reviewer
-    final isAssignedReviewer = _isReviewer() &&
-        document.reviewers.isNotEmpty &&
-        document.reviewers.any((reviewer) => reviewer.userId == _currentUserId);
+    // Check if this is a task for current user
+    final isMyTask = _getMyTasks().contains(document.status);
 
-    // Get current user's review status if they are a reviewer
-    ReviewerModel? currentUserReview;
-    if (isAssignedReviewer) {
-      currentUserReview = document.reviewers.firstWhere(
-        (reviewer) => reviewer.userId == _currentUserId,
-      );
-    }
-
-    // Special highlighting for Stage1_approved documents
-    bool isReadyForAssignment = document.status == AppConstants.STAGE1_APPROVED;
+    // Special highlighting for Stage2_approved documents
+    bool isReadyForLayout = document.status == AppConstants.STAGE2_APPROVED;
 
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -872,10 +926,12 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
           ),
         ],
         border: Border.all(
-          color: isReadyForAssignment
+          color: isReadyForLayout
               ? Colors.green.withOpacity(0.5)
-              : statusColor.withOpacity(0.2),
-          width: isReadyForAssignment ? 2 : 1,
+              : isMyTask
+                  ? statusColor.withOpacity(0.5)
+                  : statusColor.withOpacity(0.2),
+          width: (isReadyForLayout || isMyTask) ? 2 : 1,
         ),
       ),
       child: InkWell(
@@ -886,7 +942,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with status and special badge for ready documents
+              // Header with status and special badges
               Row(
                 children: [
                   Container(
@@ -912,7 +968,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                                 color: statusColor,
                               ),
                             ),
-                            if (isReadyForAssignment) ...[
+                            if (isReadyForLayout) ...[
                               SizedBox(width: 8),
                               Container(
                                 padding: EdgeInsets.symmetric(
@@ -923,6 +979,25 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                                 ),
                                 child: Text(
                                   'جديد',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (isMyTask && !isReadyForLayout) ...[
+                              SizedBox(width: 8),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: statusColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'مهمتي',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -998,7 +1073,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                       border: Border.all(color: statusColor.withOpacity(0.3)),
                     ),
                     child: Text(
-                      'المرحلة 2',
+                      'المرحلة 3',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -1011,18 +1086,18 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
 
               SizedBox(height: 16),
 
-              // Reviewers info or user's review status
-              if (isAssignedReviewer && currentUserReview != null)
-                _buildUserReviewStatus(currentUserReview!)
-              else if (document.reviewers.isNotEmpty)
-                _buildReviewersInfo(document)
-              else if (isReadyForAssignment)
-                _buildReadyForAssignmentInfo(),
+              // Stage 3 specific info
+              if (isReadyForLayout)
+                _buildReadyForLayoutInfo()
+              else if (document.status == AppConstants.LAYOUT_DESIGN_STAGE3)
+                _buildLayoutInProgressInfo()
+              else if (document.status == AppConstants.FINAL_REVIEW_STAGE)
+                _buildFinalReviewInfo(),
 
               SizedBox(height: 16),
 
-              // Progress indicator for Stage 2
-              _buildStage2ProgressIndicator(document.status),
+              // Progress indicator for Stage 3
+              _buildStage3ProgressIndicator(document.status),
 
               SizedBox(height: 16),
 
@@ -1035,8 +1110,9 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                       icon: Icon(_getActionIcon(document), size: 18),
                       label: Text(_getActionText(document)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isReadyForAssignment ? Colors.green : statusColor,
+                        backgroundColor: isReadyForLayout || isMyTask
+                            ? statusColor
+                            : statusColor.withOpacity(0.8),
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -1065,7 +1141,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  Widget _buildReadyForAssignmentInfo() {
+  Widget _buildReadyForLayoutInfo() {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1081,7 +1157,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'معتمد من المرحلة الأولى - جاهز لتعيين المحكمين',
+              'معتمد من المرحلة الثانية - جاهز للإخراج الفني',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -1094,51 +1170,36 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  Widget _buildUserReviewStatus(ReviewerModel reviewerInfo) {
-    Color statusColor = _getReviewStatusColor(reviewerInfo.reviewStatus);
-    String statusText = _getReviewStatusDisplayName(reviewerInfo.reviewStatus);
-
+  Widget _buildLayoutInProgressInfo() {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [statusColor.withOpacity(0.1), statusColor.withOpacity(0.05)],
+          colors: [Colors.purple.shade50, Colors.purple.shade100],
         ),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        border: Border.all(color: Colors.purple.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.person, color: statusColor, size: 16),
+          Icon(Icons.design_services, color: Colors.purple.shade600, size: 16),
           SizedBox(width: 8),
-          Text(
-            'حالة مراجعتي: $statusText',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: statusColor,
-            ),
-          ),
-          Spacer(),
-          if (reviewerInfo.assignedDate != null)
-            Text(
-              'منذ ${DateTime.now().difference(reviewerInfo.assignedDate!).inDays} أيام',
+          Expanded(
+            child: Text(
+              'جاري العمل على الإخراج الفني والتصميم',
               style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.purple.shade700,
               ),
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildReviewersInfo(DocumentModel document) {
-    final completedReviews = document.reviewers
-        .where((reviewer) => reviewer.reviewStatus == 'Completed')
-        .length;
-    final totalReviewers = document.reviewers.length;
-
+  Widget _buildFinalReviewInfo() {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1150,22 +1211,16 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
       ),
       child: Row(
         children: [
-          Icon(Icons.people, color: Colors.indigo.shade600, size: 16),
-          SizedBox(width: 8),
-          Text(
-            'المحكمون: $completedReviews/$totalReviewers',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.indigo.shade700,
-            ),
-          ),
+          Icon(Icons.fact_check, color: Colors.indigo.shade600, size: 16),
           SizedBox(width: 8),
           Expanded(
-            child: LinearProgressIndicator(
-              value: totalReviewers > 0 ? completedReviews / totalReviewers : 0,
-              backgroundColor: Colors.indigo.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo.shade600),
+            child: Text(
+              'في المراجعة النهائية قبل النشر',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.indigo.shade700,
+              ),
             ),
           ),
         ],
@@ -1173,9 +1228,9 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  Widget _buildStage2ProgressIndicator(String status) {
-    final steps = ['ready', 'assigned', 'reviewing', 'completed', 'approved'];
-    int currentStep = _getStage2StepIndex(status);
+  Widget _buildStage3ProgressIndicator(String status) {
+    final steps = ['ready', 'layout', 'review', 'final', 'published'];
+    int currentStep = _getStage3StepIndex(status);
 
     return Row(
       children: List.generate(steps.length, (index) {
@@ -1188,7 +1243,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             margin: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
               color: isCompleted || isCurrent
-                  ? Colors.indigo.shade600
+                  ? Colors.deepPurple.shade600
                   : Colors.grey.shade300,
               borderRadius: BorderRadius.circular(2),
             ),
@@ -1198,86 +1253,102 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  int _getStage2StepIndex(String status) {
-    if ([AppConstants.STAGE1_APPROVED].contains(status)) return 0;
-    if ([AppConstants.REVIEWERS_ASSIGNED].contains(status)) return 1;
-    if ([AppConstants.UNDER_PEER_REVIEW].contains(status)) return 2;
-    if ([AppConstants.PEER_REVIEW_COMPLETED, AppConstants.HEAD_REVIEW_STAGE2]
-        .contains(status)) return 3;
+  int _getStage3StepIndex(String status) {
+    if ([AppConstants.STAGE2_APPROVED].contains(status)) return 0;
     if ([
-      AppConstants.STAGE2_APPROVED,
-      AppConstants.STAGE2_REJECTED,
-      AppConstants.STAGE2_EDIT_REQUESTED,
-      AppConstants.STAGE2_WEBSITE_APPROVED
-    ].contains(status)) return 4;
+      AppConstants.LAYOUT_DESIGN_STAGE3,
+      AppConstants.LAYOUT_REVISION_REQUESTED
+    ].contains(status)) return 1;
+    if ([
+      AppConstants.LAYOUT_DESIGN_COMPLETED,
+      AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+      AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+      AppConstants.FINAL_REVIEW_STAGE
+    ].contains(status)) return 2;
+    if ([
+      AppConstants.FINAL_MODIFICATIONS,
+      AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+      AppConstants.HEAD_EDITOR_FINAL_APPROVAL
+    ].contains(status)) return 3;
+    if ([AppConstants.PUBLISHED].contains(status)) return 4;
     return 0;
   }
 
   String _getStageDescription(String status) {
-    if ([AppConstants.STAGE1_APPROVED].contains(status)) {
-      return 'جاهز لتعيين المحكمين';
-    } else if ([AppConstants.REVIEWERS_ASSIGNED, AppConstants.UNDER_PEER_REVIEW]
-        .contains(status)) {
-      return 'تحت التحكيم العلمي';
+    if ([AppConstants.STAGE2_APPROVED].contains(status)) {
+      return 'جاهز للإخراج الفني';
     } else if ([
-      AppConstants.PEER_REVIEW_COMPLETED,
-      AppConstants.HEAD_REVIEW_STAGE2
+      AppConstants.LAYOUT_DESIGN_STAGE3,
+      AppConstants.LAYOUT_REVISION_REQUESTED
     ].contains(status)) {
-      return 'مراجعة نتائج التحكيم';
-    } else {
-      return 'مكتملة';
+      return 'في مرحلة الإخراج الفني';
+    } else if ([
+      AppConstants.LAYOUT_DESIGN_COMPLETED,
+      AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+      AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+      AppConstants.FINAL_REVIEW_STAGE
+    ].contains(status)) {
+      return 'في مرحلة المراجعة';
+    } else if ([
+      AppConstants.FINAL_MODIFICATIONS,
+      AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+      AppConstants.HEAD_EDITOR_FINAL_APPROVAL
+    ].contains(status)) {
+      return 'في المراحل النهائية';
+    } else if ([AppConstants.PUBLISHED].contains(status)) {
+      return 'تم النشر';
     }
+    return 'في الإنتاج';
   }
 
   IconData _getActionIcon(DocumentModel document) {
-    if (document.status == AppConstants.STAGE1_APPROVED) {
-      return Icons.assignment_ind; // Assign reviewers icon
+    if (document.status == AppConstants.STAGE2_APPROVED) {
+      return Icons.design_services;
     }
 
-    if (_isReviewer() &&
-        document.reviewers.isNotEmpty &&
-        document.reviewers
-            .any((reviewer) => reviewer.userId == _currentUserId)) {
-      final userReviewer = document.reviewers.firstWhere(
-        (reviewer) => reviewer.userId == _currentUserId,
-      );
-      switch (userReviewer.reviewStatus) {
-        case 'Pending':
-          return Icons.play_arrow;
-        case 'In Progress':
-          return Icons.edit;
-        case 'Completed':
-          return Icons.visibility;
-        default:
-          return Icons.visibility;
-      }
+    // Check user-specific actions
+    if (_isLayoutDesigner() && _getMyTasks().contains(document.status)) {
+      return Icons.edit;
     }
+    if (_isFinalReviewer() &&
+        document.status == AppConstants.FINAL_REVIEW_STAGE) {
+      return Icons.fact_check;
+    }
+    if (_isManagingEditor() && _getMyTasks().contains(document.status)) {
+      return Icons.rate_review;
+    }
+    if (_isHeadEditor() && _getMyTasks().contains(document.status)) {
+      return Icons.verified_user;
+    }
+
     return Icons.visibility;
   }
 
   String _getActionText(DocumentModel document) {
-    if (document.status == AppConstants.STAGE1_APPROVED) {
-      return 'تعيين المحكمين';
+    if (document.status == AppConstants.STAGE2_APPROVED) {
+      return 'إرسال للإخراج الفني';
     }
 
-    if (_isReviewer() &&
-        document.reviewers.isNotEmpty &&
-        document.reviewers
-            .any((reviewer) => reviewer.userId == _currentUserId)) {
-      final userReviewer = document.reviewers.firstWhere(
-        (reviewer) => reviewer.userId == _currentUserId,
-      );
-      switch (userReviewer.reviewStatus) {
-        case 'Pending':
-          return 'بدء المراجعة';
-        case 'In Progress':
-          return 'إكمال المراجعة';
-        case 'Completed':
-          return 'عرض المراجعة';
-        default:
-          return 'عرض التفاصيل';
+    // Check user-specific actions
+    if (_isLayoutDesigner() && _getMyTasks().contains(document.status)) {
+      if (document.status == AppConstants.LAYOUT_DESIGN_STAGE3) {
+        return 'إكمال الإخراج الفني';
+      } else if (document.status == AppConstants.FINAL_MODIFICATIONS) {
+        return 'إكمال التعديلات النهائية';
       }
+      return 'إكمال المهمة';
     }
+    if (_isFinalReviewer() &&
+        document.status == AppConstants.FINAL_REVIEW_STAGE) {
+      return 'إجراء المراجعة النهائية';
+    }
+    if (_isManagingEditor() && _getMyTasks().contains(document.status)) {
+      return 'مراجعة واتخاذ قرار';
+    }
+    if (_isHeadEditor() && _getMyTasks().contains(document.status)) {
+      return 'مراجعة واعتماد';
+    }
+
     return 'عرض التفاصيل';
   }
 
@@ -1297,56 +1368,46 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   }
 
   void _navigateToDetailsPage(DocumentModel document) {
-    Widget page;
-    print(_currentUserPosition);
-    print(AppConstants.POSITION_MANAGING_EDITOR);
-    print(AppConstants.POSITION_EDITOR_CHIEF);
-    print(document.status);
-    print(AppConstants.LANGUAGE_EDITOR_COMPLETED);
-    print(AppConstants.CHEF_REVIEW_LANGUAGE_EDIT);
-    // Check if current user is language editor and document is in language editing stage
-    if (_currentUserPosition == AppConstants.POSITION_LANGUAGE_EDITOR &&
-        document.status == AppConstants.LANGUAGE_EDITING_STAGE2) {
-      page = Stage2LanguageEditorPage(document: document);
-    }
-    // Check if current user is chef/managing editor for language review
-    else if ((_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) &&
-        (document.status == AppConstants.LANGUAGE_EDITOR_COMPLETED ||
-            document.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)) {
-      page = Stage2ChefEditorLanguageReviewPage(document: document);
-    }
-    // Head editor or documents ready for assignment
-    else if (_isHeadEditor() ||
+    Widget? page;
+
+    // Route to appropriate detail page based on user role and document status
+
+    if (_isLayoutDesigner() &&
         [
-          AppConstants.STAGE1_APPROVED,
-          AppConstants.REVIEWERS_ASSIGNED,
-          AppConstants.PEER_REVIEW_COMPLETED,
-          AppConstants.HEAD_REVIEW_STAGE2,
-          AppConstants.LANGUAGE_EDITING_STAGE2,
-          AppConstants.LANGUAGE_EDITOR_COMPLETED,
-          AppConstants.CHEF_REVIEW_LANGUAGE_EDIT,
+          AppConstants.LAYOUT_DESIGN_STAGE3,
+          AppConstants.LAYOUT_REVISION_REQUESTED,
+          AppConstants.FINAL_MODIFICATIONS,
+          AppConstants.STAGE2_APPROVED
         ].contains(document.status)) {
-      page = Stage2HeadEditorDetailsPage(document: document);
+      page = Stage3LayoutDesignerPage(document: document);
     }
-    // For reviewers
-    else if (_isReviewer() &&
-        document.reviewers.any((r) => r.userId == _currentUserId)) {
-      page = Stage2ReviewerDetailsPage(document: document);
-    }
-    // Default to head editor page for viewing
-    else {
-      page = Stage2HeadEditorDetailsPage(document: document);
+    // TODO: Add other detail pages as they are created
+    else if (_isFinalReviewer() &&
+        document.status == AppConstants.FINAL_REVIEW_STAGE) {
+      page = Stage3FinalReviewerPage(document: document);
+    } else if (_isManagingEditor()) {
+      page = Stage3ManagingEditorPage(document: document);
+    } else if (_isHeadEditor()) {
+      page = Stage3HeadEditorPage(document: document);
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => page),
-    ).then((_) {
-      // Refresh the page when returning
-      _applyFilters();
-    });
-    print(page.toString());
+    if (page != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => page!),
+      ).then((_) {
+        _applyFilters();
+      });
+    } else {
+      // Show placeholder for pages not yet implemented
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('صفحة تفاصيل هذا المستخدم - قيد التطوير'),
+          backgroundColor: Colors.deepPurple.shade600,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _showQuickActions(DocumentModel document) {
@@ -1375,7 +1436,8 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             ),
             SizedBox(height: 20),
             ListTile(
-              leading: Icon(Icons.visibility, color: Colors.indigo.shade600),
+              leading:
+                  Icon(Icons.visibility, color: Colors.deepPurple.shade600),
               title: Text('عرض التفاصيل'),
               onTap: () {
                 Navigator.pop(context);
@@ -1384,37 +1446,17 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             ),
             ListTile(
               leading: Icon(Icons.history, color: Colors.blue),
-              title: Text('سجل التحكيم'),
+              title: Text('سجل الإنتاج'),
               onTap: () {
                 Navigator.pop(context);
-                _showReviewHistory(document);
+                _showProductionHistory(document);
               },
             ),
-            if (document.reviewers.isNotEmpty)
-              ListTile(
-                leading: Icon(Icons.people, color: Colors.green),
-                title: Text('المحكمون'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showReviewersDialog(document);
-                },
-              ),
-            if (document.status == AppConstants.STAGE1_APPROVED &&
-                _isHeadEditor())
-              ListTile(
-                leading: Icon(Icons.assignment_ind, color: Colors.orange),
-                title: Text('تعيين المحكمين'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _navigateToDetailsPage(document);
-                },
-              ),
             ListTile(
               leading: Icon(Icons.download, color: Colors.orange),
               title: Text('تحميل الملف'),
               onTap: () {
                 Navigator.pop(context);
-                // Implement file download
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('سيتم إضافة تحميل الملفات قريباً')),
                 );
@@ -1426,13 +1468,13 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  void _showReviewHistory(DocumentModel document) {
+  void _showProductionHistory(DocumentModel document) {
     showDialog(
       context: context,
       builder: (context) => Directionality(
         textDirection: ui.TextDirection.rtl,
         child: AlertDialog(
-          title: Text('سجل التحكيم'),
+          title: Text('سجل الإنتاج'),
           content: Container(
             width: double.maxFinite,
             height: 400,
@@ -1442,8 +1484,9 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                 final action = document.actionLog[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blue.shade100,
-                    child: Icon(Icons.history, color: Colors.blue.shade600),
+                    backgroundColor: Colors.deepPurple.shade100,
+                    child:
+                        Icon(Icons.history, color: Colors.deepPurple.shade600),
                   ),
                   title: Text(action.action),
                   subtitle: Column(
@@ -1469,86 +1512,5 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
         ),
       ),
     );
-  }
-
-  void _showReviewersDialog(DocumentModel document) {
-    showDialog(
-      context: context,
-      builder: (context) => Directionality(
-        textDirection: ui.TextDirection.rtl,
-        child: AlertDialog(
-          title: Text('المحكمون المعينون'),
-          content: Container(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: document.reviewers.length,
-              itemBuilder: (context, index) {
-                final reviewer = document.reviewers[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        _getReviewStatusColor(reviewer.reviewStatus),
-                    child: Text(
-                      reviewer.name[0],
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(reviewer.name),
-                  subtitle: Text(reviewer.position),
-                  trailing: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getReviewStatusColor(reviewer.reviewStatus),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getReviewStatusDisplayName(reviewer.reviewStatus),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('إغلاق'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getReviewStatusColor(String status) {
-    switch (status) {
-      case 'Pending':
-        return Colors.orange;
-      case 'In Progress':
-        return Colors.blue;
-      case 'Completed':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getReviewStatusDisplayName(String status) {
-    switch (status) {
-      case 'Pending':
-        return 'في الانتظار';
-      case 'In Progress':
-        return 'قيد المراجعة';
-      case 'Completed':
-        return 'مكتمل';
-      default:
-        return status;
-    }
   }
 }

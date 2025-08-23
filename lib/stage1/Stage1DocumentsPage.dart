@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 
-import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
+import '../App_Constants.dart';
+import '../Document_Services.dart';
+import '../models/document_model.dart';
 import 'Stag1HeadEditorDetailsPage.dart';
 import 'Stage1SecretaryDetailsPage.dart';
 import 'Stage1EditorDetailsPage.dart';

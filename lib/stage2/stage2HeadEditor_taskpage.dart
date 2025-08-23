@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 
 import '../../Classes/current_user_providerr.dart';
-import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
+import '../App_Constants.dart';
+import '../Document_Services.dart';
+import '../models/document_model.dart';
 
 class Stage2HeadEditorTasksPage extends StatefulWidget {
   @override

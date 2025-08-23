@@ -9,13 +9,13 @@ import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
 
 import '../../Classes/current_user_providerr.dart';
-import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
+import '../App_Constants.dart';
+import '../Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/Action_history.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/ImprovedReviewerSelector.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/senderinfocard.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/reviewerModel.dart';
+import '../models/document_model.dart';
+import '../models/reviewerModel.dart';
 
 class Stage2HeadEditorDetailsPage extends StatefulWidget {
   final DocumentModel document;
@@ -114,7 +114,21 @@ class _Stage2HeadEditorDetailsPageState
   }
 
   bool _canTakeAction() {
-    return _isHeadEditor() || _isEditorChief();
+    // Head Editor can always take action
+    if (_isHeadEditor()) return true;
+
+    // Chef/Managing Editor can take action in specific statuses
+    if (_isEditorChief() ||
+        _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR) {
+      return [
+        AppConstants.LANGUAGE_EDITOR_COMPLETED,
+        AppConstants.CHEF_REVIEW_LANGUAGE_EDIT,
+        AppConstants
+            .HEAD_REVIEW_STAGE2, // When language editing is approved and comes back to head
+      ].contains(_document!.status);
+    }
+
+    return false;
   }
 
   Color _getThemeColor() {
@@ -1749,7 +1763,6 @@ class _Stage2HeadEditorDetailsPageState
   }
 
 // Update the _buildFinalDecisionPanel method in stage2HeadEditor.dart
-
   Widget _buildFinalDecisionPanel() {
     return Column(
       children: [
@@ -1781,7 +1794,7 @@ class _Stage2HeadEditorDetailsPageState
                   ),
                   Spacer(),
                   ElevatedButton.icon(
-                    onPressed: () => _showSimpleReviewSummary(),
+                    onPressed: () => _showDetailedReviewAnalysis(),
                     icon: Icon(Icons.analytics, size: 16),
                     label: Text('عرض التفاصيل'),
                     style: ElevatedButton.styleFrom(
@@ -1801,61 +1814,449 @@ class _Stage2HeadEditorDetailsPageState
 
         SizedBox(height: 24),
 
-        // Decision Options based on status
-        if (_document!.status == AppConstants.PEER_REVIEW_COMPLETED ||
+        // Decision Options based on status and user role
+        if (_document!.status == AppConstants.LANGUAGE_EDITOR_COMPLETED &&
+            (_isEditorChief() ||
+                _currentUserPosition ==
+                    AppConstants.POSITION_MANAGING_EDITOR)) ...[
+          // Chef Editor reviewing completed language editing
+          _buildChefLanguageReviewDecisions(),
+        ] else if (_document!.status ==
+                AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
+            (_isEditorChief() ||
+                _currentUserPosition ==
+                    AppConstants.POSITION_MANAGING_EDITOR)) ...[
+          // Chef Editor making decision on language editing
+          _buildChefLanguageReviewDecisions(),
+        ] else if (_document!.status == AppConstants.PEER_REVIEW_COMPLETED ||
             _document!.status == AppConstants.HEAD_REVIEW_STAGE2) ...[
-          Text(
-            'القرارات المتاحة:',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: _getThemeColor(),
+          // Head Editor decisions (including after chef approval of language editing)
+          _buildHeadEditorDecisions(),
+        ],
+      ],
+    );
+  }
+
+  // Widget _buildFinalDecisionPanel() {
+  //   return Column(
+  //     children: [
+  //       // Review Summary
+  //       Container(
+  //         padding: EdgeInsets.all(16),
+  //         decoration: BoxDecoration(
+  //           gradient: LinearGradient(
+  //             colors: [Colors.purple.shade50, Colors.purple.shade100],
+  //           ),
+  //           borderRadius: BorderRadius.circular(12),
+  //           border: Border.all(color: Colors.purple.shade200),
+  //         ),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Row(
+  //               children: [
+  //                 Icon(Icons.assessment,
+  //                     color: Colors.purple.shade600, size: 24),
+  //                 SizedBox(width: 12),
+  //                 Text(
+  //                   'ملخص نتائج التحكيم',
+  //                   style: TextStyle(
+  //                     fontSize: 18,
+  //                     fontWeight: FontWeight.bold,
+  //                     color: Colors.purple.shade700,
+  //                   ),
+  //                 ),
+  //                 Spacer(),
+  //                 ElevatedButton.icon(
+  //                   onPressed: () => _showSimpleReviewSummary(),
+  //                   icon: Icon(Icons.analytics, size: 16),
+  //                   label: Text('عرض التفاصيل'),
+  //                   style: ElevatedButton.styleFrom(
+  //                     backgroundColor: Colors.purple.shade600,
+  //                     foregroundColor: Colors.white,
+  //                     padding:
+  //                         EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //             SizedBox(height: 16),
+  //             _buildSimpleReviewSummary(),
+  //           ],
+  //         ),
+  //       ),
+  //
+  //       SizedBox(height: 24),
+  //
+  //       // Decision Options based on status
+  //       if (_document!.status == AppConstants.PEER_REVIEW_COMPLETED ||
+  //           _document!.status == AppConstants.HEAD_REVIEW_STAGE2) ...[
+  //         Text(
+  //           'القرارات المتاحة:',
+  //           style: TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.bold,
+  //             color: _getThemeColor(),
+  //           ),
+  //         ),
+  //         SizedBox(height: 16),
+  //
+  //         // Primary option: Send to Language Editor
+  //         SizedBox(
+  //           width: double.infinity,
+  //           child: _buildFinalActionButton(
+  //             title: 'إرسال للتدقيق اللغوي',
+  //             subtitle: 'إرسال للمدقق اللغوي قبل القرار النهائي',
+  //             icon: Icons.spellcheck,
+  //             color: Colors.blue,
+  //             onPressed: () =>
+  //                 _showFinalActionDialog('send_to_language_editor'),
+  //           ),
+  //         ),
+  //
+  //         SizedBox(height: 12),
+  //
+  //         // Alternative options
+  //         Row(
+  //           children: [
+  //             Expanded(
+  //               child: _buildFinalActionButton(
+  //                 title: 'رفض مباشر',
+  //                 subtitle: 'رفض بدون تدقيق لغوي',
+  //                 icon: Icons.cancel,
+  //                 color: Colors.red,
+  //                 onPressed: () => _showFinalActionDialog('reject'),
+  //               ),
+  //             ),
+  //             SizedBox(width: 12),
+  //             Expanded(
+  //               child: _buildFinalActionButton(
+  //                 title: 'نشر الموقع',
+  //                 subtitle: 'موافقة للموقع فقط',
+  //                 icon: Icons.public,
+  //                 color: Colors.orange,
+  //                 onPressed: () => _showFinalActionDialog('website_approve'),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ] else if (_document!.status ==
+  //               AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
+  //           (_isEditorChief() ||
+  //               _currentUserPosition ==
+  //                   AppConstants.POSITION_MANAGING_EDITOR)) ...[
+  //         // Chef review of language editing
+  //         Container(
+  //           padding: EdgeInsets.all(16),
+  //           decoration: BoxDecoration(
+  //             gradient: LinearGradient(
+  //               colors: [Colors.purple.shade50, Colors.purple.shade100],
+  //             ),
+  //             borderRadius: BorderRadius.circular(12),
+  //             border: Border.all(color: Colors.purple.shade200),
+  //           ),
+  //           child: Column(
+  //             children: [
+  //               Row(
+  //                 children: [
+  //                   Icon(Icons.spellcheck,
+  //                       color: Colors.purple.shade600, size: 24),
+  //                   SizedBox(width: 12),
+  //                   Expanded(
+  //                     child: Text(
+  //                       'مراجعة التدقيق اللغوي',
+  //                       style: TextStyle(
+  //                         fontSize: 16,
+  //                         fontWeight: FontWeight.bold,
+  //                         color: Colors.purple.shade700,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               SizedBox(height: 8),
+  //               Text(
+  //                 'راجع عمل المدقق اللغوي واتخذ قرارك',
+  //                 style: TextStyle(
+  //                   fontSize: 14,
+  //                   color: Colors.purple.shade600,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //
+  //         SizedBox(height: 16),
+  //
+  //         Text(
+  //           'قرارات مراجعة التدقيق اللغوي:',
+  //           style: TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.bold,
+  //             color: _getThemeColor(),
+  //           ),
+  //         ),
+  //
+  //         SizedBox(height: 16),
+  //
+  //         // Chef decisions for language editing
+  //         Column(
+  //           children: [
+  //             SizedBox(
+  //               width: double.infinity,
+  //               child: _buildFinalActionButton(
+  //                 title: 'الموافقة على التدقيق',
+  //                 subtitle: 'إرسال لرئيس التحرير للقرار النهائي',
+  //                 icon: Icons.check_circle,
+  //                 color: Colors.green,
+  //                 onPressed: () => _showChefLanguageReviewDialog('approve'),
+  //               ),
+  //             ),
+  //             SizedBox(height: 12),
+  //             SizedBox(
+  //               width: double.infinity,
+  //               child: _buildFinalActionButton(
+  //                 title: 'إعادة للتدقيق',
+  //                 subtitle: 'إرجاع للمدقق اللغوي للتحسين',
+  //                 icon: Icons.replay,
+  //                 color: Colors.orange,
+  //                 onPressed: () => _showChefLanguageReviewDialog('reject'),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ] else if (_document!.status == AppConstants.HEAD_REVIEW_STAGE2 &&
+  //           _document!.languageEditingApproved == true) ...[
+  //         // Head editor final decision after language editing approval
+  //         Container(
+  //           padding: EdgeInsets.all(16),
+  //           decoration: BoxDecoration(
+  //             gradient: LinearGradient(
+  //               colors: [Colors.green.shade50, Colors.green.shade100],
+  //             ),
+  //             borderRadius: BorderRadius.circular(12),
+  //             border: Border.all(color: Colors.green.shade200),
+  //           ),
+  //           child: Column(
+  //             children: [
+  //               Row(
+  //                 children: [
+  //                   Icon(Icons.check_circle,
+  //                       color: Colors.green.shade600, size: 24),
+  //                   SizedBox(width: 12),
+  //                   Expanded(
+  //                     child: Text(
+  //                       'اكتمل التدقيق اللغوي - القرار النهائي',
+  //                       style: TextStyle(
+  //                         fontSize: 16,
+  //                         fontWeight: FontWeight.bold,
+  //                         color: Colors.green.shade700,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               SizedBox(height: 8),
+  //               Text(
+  //                 'تم اعتماد التدقيق اللغوي من مدير التحرير. اتخذ قرارك النهائي.',
+  //                 style: TextStyle(
+  //                   fontSize: 14,
+  //                   color: Colors.green.shade600,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //
+  //         SizedBox(height: 16),
+  //
+  //         Text(
+  //           'القرارات النهائية:',
+  //           style: TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.bold,
+  //             color: _getThemeColor(),
+  //           ),
+  //         ),
+  //
+  //         SizedBox(height: 16),
+  //
+  //         Column(
+  //           children: [
+  //             SizedBox(
+  //               width: double.infinity,
+  //               child: _buildFinalActionButton(
+  //                 title: 'الموافقة للمرحلة الثالثة',
+  //                 subtitle: 'إرسال للإنتاج النهائي',
+  //                 icon: Icons.verified,
+  //                 color: Colors.green,
+  //                 onPressed: () => _showFinalActionDialog('stage3_approve'),
+  //               ),
+  //             ),
+  //             SizedBox(height: 12),
+  //             Row(
+  //               children: [
+  //                 Expanded(
+  //                   child: _buildFinalActionButton(
+  //                     title: 'طلب تعديل',
+  //                     subtitle: 'يحتاج تعديلات إضافية',
+  //                     icon: Icons.edit,
+  //                     color: Colors.orange,
+  //                     onPressed: () => _showFinalActionDialog('edit_request'),
+  //                   ),
+  //                 ),
+  //                 SizedBox(width: 12),
+  //                 Expanded(
+  //                   child: _buildFinalActionButton(
+  //                     title: 'رفض',
+  //                     subtitle: 'رفض نهائي',
+  //                     icon: Icons.cancel,
+  //                     color: Colors.red,
+  //                     onPressed: () => _showFinalActionDialog('reject'),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //             SizedBox(height: 12),
+  //             SizedBox(
+  //               width: double.infinity,
+  //               child: _buildFinalActionButton(
+  //                 title: 'نشر الموقع',
+  //                 subtitle: 'موافقة للموقع فقط',
+  //                 icon: Icons.public,
+  //                 color: Colors.blue,
+  //                 onPressed: () => _showFinalActionDialog('website_approve'),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ],
+  //   );
+  // }
+
+// 3. Add new method for Chef Editor language review decisions
+  Widget _buildChefLanguageReviewDecisions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xffa86418).withOpacity(0.1),
+                Color(0xffa86418).withOpacity(0.05)
+              ],
             ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Color(0xffa86418).withOpacity(0.3)),
           ),
-          SizedBox(height: 16),
-
-          // Primary option: Send to Language Editor
-          SizedBox(
-            width: double.infinity,
-            child: _buildFinalActionButton(
-              title: 'إرسال للتدقيق اللغوي',
-              subtitle: 'إرسال للمدقق اللغوي قبل القرار النهائي',
-              icon: Icons.spellcheck,
-              color: Colors.blue,
-              onPressed: () =>
-                  _showFinalActionDialog('send_to_language_editor'),
-            ),
-          ),
-
-          SizedBox(height: 12),
-
-          // Alternative options
-          Row(
+          child: Column(
             children: [
-              Expanded(
-                child: _buildFinalActionButton(
-                  title: 'رفض مباشر',
-                  subtitle: 'رفض بدون تدقيق لغوي',
-                  icon: Icons.cancel,
-                  color: Colors.red,
-                  onPressed: () => _showFinalActionDialog('reject'),
-                ),
+              Row(
+                children: [
+                  Icon(Icons.supervisor_account,
+                      color: Color(0xffa86418), size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'مراجعة التدقيق اللغوي',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xffa86418),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildFinalActionButton(
-                  title: 'نشر الموقع',
-                  subtitle: 'موافقة للموقع فقط',
-                  icon: Icons.public,
-                  color: Colors.orange,
-                  onPressed: () => _showFinalActionDialog('website_approve'),
+              SizedBox(height: 8),
+              Text(
+                'راجع عمل المدقق اللغوي واتخذ قرارك',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xffa86418).withOpacity(0.8),
                 ),
               ),
             ],
           ),
-        ] else if (_document!.status ==
-            AppConstants.CHEF_REVIEW_LANGUAGE_EDIT) ...[
-          // After language editing review - final decisions
+        ),
+
+        SizedBox(height: 16),
+
+        Text(
+          'قرارات مراجعة التدقيق اللغوي:',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: _getThemeColor(),
+          ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Chef decisions for language editing
+        Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: _buildFinalActionButton(
+                title: 'الموافقة على التدقيق',
+                subtitle: 'إرسال لرئيس التحرير للقرار النهائي',
+                icon: Icons.check_circle,
+                color: Colors.green,
+                onPressed: () => _showChefLanguageReviewDialog('approve'),
+              ),
+            ),
+            SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _buildFinalActionButton(
+                title: 'إعادة للتدقيق',
+                subtitle: 'إرجاع للمدقق اللغوي للتحسين',
+                icon: Icons.replay,
+                color: Colors.orange,
+                onPressed: () => _showChefLanguageReviewDialog('reject'),
+              ),
+            ),
+            SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _buildFinalActionButton(
+                title: 'طلب تعديل من المؤلف',
+                subtitle: 'إرجاع للمؤلف للتعديل',
+                icon: Icons.edit,
+                color: Colors.blue,
+                onPressed: () => _showFinalActionDialog('edit_request'),
+              ),
+            ),
+            SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _buildFinalActionButton(
+                title: 'نشر الموقع',
+                subtitle: 'موافقة للموقع فقط',
+                icon: Icons.public,
+                color: Colors.indigo,
+                onPressed: () => _showFinalActionDialog('website_approve'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+// 4. Add new method for Head Editor decisions (enhanced)
+  Widget _buildHeadEditorDecisions() {
+    bool languageEditingCompleted = _document!.languageEditingApproved == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (languageEditingCompleted) ...[
+          // After language editing is approved by chef
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1915,7 +2316,7 @@ class _Stage2HeadEditorDetailsPageState
                 width: double.infinity,
                 child: _buildFinalActionButton(
                   title: 'الموافقة للمرحلة الثالثة',
-                  subtitle: 'إرسال للتحرير اللغوي والإخراج النهائي',
+                  subtitle: 'إرسال للإنتاج النهائي',
                   icon: Icons.verified,
                   color: Colors.green,
                   onPressed: () => _showFinalActionDialog('stage3_approve'),
@@ -1945,11 +2346,279 @@ class _Stage2HeadEditorDetailsPageState
                   ),
                 ],
               ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: _buildFinalActionButton(
+                  title: 'نشر الموقع',
+                  subtitle: 'موافقة للموقع فقط',
+                  icon: Icons.public,
+                  color: Colors.blue,
+                  onPressed: () => _showFinalActionDialog('website_approve'),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          // Before language editing or initial review completed
+          Text(
+            'القرارات المتاحة:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getThemeColor(),
+            ),
+          ),
+          SizedBox(height: 16),
+
+          // Primary option: Send to Language Editor
+          SizedBox(
+            width: double.infinity,
+            child: _buildFinalActionButton(
+              title: 'إرسال للتدقيق اللغوي',
+              subtitle: 'إرسال للمدقق اللغوي قبل القرار النهائي',
+              icon: Icons.spellcheck,
+              color: Colors.blue,
+              onPressed: () =>
+                  _showFinalActionDialog('send_to_language_editor'),
+            ),
+          ),
+
+          SizedBox(height: 12),
+
+          // Alternative options
+          Row(
+            children: [
+              Expanded(
+                child: _buildFinalActionButton(
+                  title: 'رفض مباشر',
+                  subtitle: 'رفض بدون تدقيق لغوي',
+                  icon: Icons.cancel,
+                  color: Colors.red,
+                  onPressed: () => _showFinalActionDialog('reject'),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildFinalActionButton(
+                  title: 'نشر الموقع',
+                  subtitle: 'موافقة للموقع فقط',
+                  icon: Icons.public,
+                  color: Colors.orange,
+                  onPressed: () => _showFinalActionDialog('website_approve'),
+                ),
+              ),
             ],
           ),
         ],
       ],
     );
+  }
+
+// 5. Add method to show detailed review analysis (for clicking on action log items)
+  void _showDetailedReviewAnalysis() {
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.purple.shade600, Colors.purple.shade800],
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.analytics, color: Colors.white, size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'التحليل المفصل لنتائج التحكيم',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(20),
+                    child: _buildDetailedReviewSummary(),
+                  ),
+                ),
+
+                // Footer
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('إغلاق'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChefLanguageReviewDialog(String decision) {
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: decision == 'approve'
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      decision == 'approve' ? Icons.check_circle : Icons.replay,
+                      color:
+                          decision == 'approve' ? Colors.green : Colors.orange,
+                      size: 20,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      decision == 'approve'
+                          ? 'الموافقة على التدقيق اللغوي'
+                          : 'إعادة للتدقيق اللغوي',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                decision == 'approve'
+                    ? 'سيتم إرسال المقال لرئيس التحرير للقرار النهائي'
+                    : 'سيتم إعادة المقال للمدقق اللغوي للتحسين',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 16),
+              TextField(
+                decoration: InputDecoration(
+                  labelText: 'تعليقاتك (مطلوب)',
+                  hintText: 'اكتب تعليقاتك هنا...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                maxLines: 3,
+                onChanged: (value) => _chefComment = value,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: (_chefComment?.trim().isNotEmpty ?? false)
+                  ? () {
+                      Navigator.pop(context);
+                      _processChefLanguageReviewDecision(
+                          decision, _chefComment!);
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    decision == 'approve' ? Colors.green : Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('تأكيد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _chefComment;
+
+  Future<void> _processChefLanguageReviewDecision(
+      String decision, String comment) async {
+    setState(() => _isLoading = true);
+
+    try {
+      await _documentService.submitChefEditorLanguageReview(
+        _document!.id,
+        _currentUserId!,
+        _currentUserName!,
+        decision,
+        comment,
+      );
+
+      await _refreshDocument();
+
+      String message = decision == 'approve'
+          ? 'تم اعتماد التدقيق اللغوي وإرساله لرئيس التحرير'
+          : 'تم إعادة المقال للتدقيق اللغوي';
+
+      _showSuccessSnackBar(message);
+    } catch (e) {
+      _showErrorSnackBar('خطأ في معالجة القرار: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
 // Simple review summary that works within the main class

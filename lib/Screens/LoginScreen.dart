@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:qiraat/Screens/reviewerFirstPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../App_Constants.dart';
 import 'mainscreens/HomeScreen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -147,7 +149,6 @@ class _LoginScreenState extends State<LoginScreen>
           await getUserDataByUID(userCredential.user!.uid);
 
       if (userData != null) {
-        // Store user info in shared preferences
         await logindata.setBool('login', false);
         await logindata.setString('username', userData['username'] ?? '');
         await logindata.setString('name', userData['fullName'] ?? '');
@@ -157,13 +158,19 @@ class _LoginScreenState extends State<LoginScreen>
             'profilePicture', userData['profileImageUrl'] ?? '');
         await logindata.setString('position', userData['position'] ?? '');
 
-        print("User data stored in SharedPreferences");
+        final position = (userData['position'] ?? '').toString();
 
-        // Navigate to home screen
+        final bool isReviewer = position == AppConstants.POSITION_REVIEWER ||
+            position.contains('محكم');
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
+          MaterialPageRoute(
+            builder: (_) =>
+                isReviewer ? const ReviewerTasksPage() : HomeScreen(),
+          ),
         );
+        return;
       } else {
         // This shouldn't happen, but handle it just in case
         await _auth.signOut();

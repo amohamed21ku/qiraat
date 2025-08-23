@@ -14,11 +14,11 @@ import 'dart:html' as html;
 import 'package:path/path.dart' as path;
 
 import '../../Classes/current_user_providerr.dart';
-import '../Screens/Document_Handling/DocumentDetails/Constants/App_Constants.dart';
-import '../Screens/Document_Handling/DocumentDetails/Services/Document_Services.dart';
+import '../App_Constants.dart';
+import '../Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/Action_history.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/senderinfocard.dart';
-import '../Screens/Document_Handling/DocumentDetails/models/document_model.dart';
+import '../models/document_model.dart';
 
 class Stage1EditorDetailsPage extends StatefulWidget {
   final DocumentModel document;

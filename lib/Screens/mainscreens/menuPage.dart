@@ -1,15 +1,20 @@
-// menuPage.dart - Updated with complete Stage 2 workflow integration
+// menuPage.dart - Clean version with reviewer-specific view
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../myTasks.dart';
 import '../../stage1/Stage1DocumentsPage.dart';
 import '../../stage2/stage2documetspage.dart';
+import '../../stage2/stage2Reviewer.dart'; // Stage2ReviewerDetailsPage
 
-import '../Document_Handling/DocumentDetails/Services/Document_Services.dart';
-import '../Document_Handling/DocumentDetails/Constants/App_Constants.dart';
+import '../../Document_Services.dart';
+import '../../App_Constants.dart';
+import '../../stage3/stage3DocumentsPage.dart';
 import '../Document_Handling/all_documents.dart';
 import '../Userspage.dart';
+import '../../models/document_model.dart';
+import '../../models/reviewerModel.dart';
 import 'IncomingFilesScreen.dart';
 import 'SettingsPage.dart';
 
@@ -28,6 +33,11 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   int incomingFilesCount = 0;
   int pendingTasksCount = 0;
   Map<String, dynamic> allStagesStatistics = {};
+
+  // Reviewer-specific data
+  List<DocumentModel> _assignedToMe = [];
+  List<DocumentModel> _reviewedByMe = [];
+  bool _reviewerDataLoading = true;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -64,12 +74,90 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
       isLoading = false;
     });
 
-    // Load statistics and counts after user data is loaded
-    await Future.wait([
-      _loadIncomingFilesCount(),
-      _loadPendingTasksCount(),
-      _loadAllStagesStatistics(),
-    ]);
+    // If user is a reviewer, load reviewer-specific data
+    if (_isReviewer()) {
+      await _loadReviewerTasks();
+    } else {
+      // Load statistics and counts for non-reviewer users
+      await Future.wait([
+        _loadIncomingFilesCount(),
+        _loadPendingTasksCount(),
+        _loadAllStagesStatistics(),
+      ]);
+    }
+  }
+
+  // Check if user is a reviewer
+  bool _isReviewer() {
+    return position.contains('محكم') ||
+        position == AppConstants.POSITION_REVIEWER ||
+        position == AppConstants.REVIEWER_POLITICAL ||
+        position == AppConstants.REVIEWER_ECONOMIC ||
+        position == AppConstants.REVIEWER_SOCIAL ||
+        position == AppConstants.REVIEWER_GENERAL;
+  }
+
+  // Load reviewer tasks
+  Future<void> _loadReviewerTasks() async {
+    try {
+      setState(() => _reviewerDataLoading = true);
+
+      if (id.isEmpty) {
+        setState(() {
+          _reviewerDataLoading = false;
+          _assignedToMe = [];
+          _reviewedByMe = [];
+        });
+        return;
+      }
+
+      // Fetch only documents assigned to this reviewer
+      final docs = await _documentService.getDocumentsForReviewer(id);
+
+      // Split into "Assigned to me" vs "Reviewed by me"
+      final assigned = <DocumentModel>[];
+      final reviewed = <DocumentModel>[];
+
+      for (final d in docs) {
+        final me = d.reviewers.firstWhere(
+          (r) => r.userId == id,
+          orElse: () => ReviewerModel(
+            userId: id,
+            name: '',
+            email: '',
+            position: '',
+            reviewStatus: AppConstants.REVIEWER_STATUS_PENDING,
+            assignedDate: DateTime.now(),
+          ),
+        );
+        if (me.reviewStatus == AppConstants.REVIEWER_STATUS_COMPLETED) {
+          reviewed.add(d);
+        } else {
+          assigned.add(d);
+        }
+      }
+
+      setState(() {
+        _assignedToMe = assigned;
+        _reviewedByMe = reviewed;
+        _reviewerDataLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _reviewerDataLoading = false;
+        _assignedToMe = [];
+        _reviewedByMe = [];
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في تحميل المهام: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // Check if user can view incoming files
@@ -145,7 +233,10 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
       final stage2InProgress = stage2Stats[AppConstants.REVIEWERS_ASSIGNED]! +
           stage2Stats[AppConstants.UNDER_PEER_REVIEW]! +
           stage2Stats[AppConstants.PEER_REVIEW_COMPLETED]! +
-          stage2Stats[AppConstants.HEAD_REVIEW_STAGE2]!;
+          stage2Stats[AppConstants.HEAD_REVIEW_STAGE2]! +
+          stage2Stats[AppConstants.LANGUAGE_EDITING_STAGE2]! +
+          stage2Stats[AppConstants.LANGUAGE_EDITOR_COMPLETED]! +
+          stage2Stats[AppConstants.CHEF_REVIEW_LANGUAGE_EDIT]!;
       final stage2Completed = stage2Stats[AppConstants.STAGE2_APPROVED]! +
           stage2Stats[AppConstants.STAGE2_REJECTED]! +
           stage2Stats[AppConstants.STAGE2_EDIT_REQUESTED]! +
@@ -202,6 +293,11 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
         context,
         MaterialPageRoute(builder: (context) => Stage2DocumentsPage()),
       );
+    } else if (stage == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Stage3DocumentsPage()),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -224,37 +320,40 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
 
   void navigateToTasksPage() {
     if (position == AppConstants.POSITION_SECRETARY) {
-      //   Navigator.push(
-      //     context,
-      //     MaterialPageRoute(builder: (context) => Stage1SecretaryTasksPage()),
-      //   );
-      // } else if (position == AppConstants.POSITION_MANAGING_EDITOR) {
-      //   Navigator.push(
-      //     context,
-      //     MaterialPageRoute(builder: (context) => Stage1EditorTasksPage()),
-      //   );
-      // } else if (position == AppConstants.POSITION_HEAD_EDITOR) {
-      //   Navigator.push(
-      //     context,
-      //     MaterialPageRoute(builder: (context) => Stage1HeadEditorTasksPage()),
-      //   );
+      // Navigate to secretary tasks
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MyTasksPage()),
+      );
+    } else if (position == AppConstants.POSITION_MANAGING_EDITOR ||
+        position == AppConstants.POSITION_EDITOR_CHIEF) {
+      // Navigate to editor tasks (both stage 1 and stage 2)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MyTasksPage()),
+      );
+    } else if (position == AppConstants.POSITION_HEAD_EDITOR) {
+      // Navigate to head editor tasks (both stage 1 and stage 2)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MyTasksPage()),
+      );
     } else if (position.contains('محكم') ||
         position == AppConstants.POSITION_REVIEWER ||
         position == AppConstants.REVIEWER_POLITICAL ||
         position == AppConstants.REVIEWER_ECONOMIC ||
         position == AppConstants.REVIEWER_SOCIAL ||
         position == AppConstants.REVIEWER_GENERAL) {
-      // Navigator.push(
-      //   context,
-      //   MaterialPageRoute(builder: (context) => Stage2ReviewerDashboard()),
-      // );
+      // Navigate to reviewer tasks
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MyTasksPage()),
+      );
     } else if (position == AppConstants.POSITION_LANGUAGE_EDITOR) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('مهام التحرير اللغوي ستكون متاحة في المرحلة الثالثة'),
-          backgroundColor: Colors.blue.shade600,
-          behavior: SnackBarBehavior.floating,
-        ),
+      // Navigate to language editor tasks
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MyTasksPage()),
       );
     } else if (position == AppConstants.POSITION_LAYOUT_DESIGNER) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -349,424 +448,178 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
               bool isTablet = constraints.maxWidth > 768;
               bool isSmall = constraints.maxHeight < 600;
 
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Header Section
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isDesktop ? 80 : 20,
-                        vertical: isDesktop ? 50 : (isSmall ? 25 : 35),
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xffcc9657),
-                            Color(0xffa86418),
-                            Color(0xff8b5a2b),
-                          ],
-                          begin: Alignment.topRight,
-                          end: Alignment.bottomLeft,
+              return RefreshIndicator(
+                onRefresh: _isReviewer() ? _loadReviewerTasks : _loadUserData,
+                child: SingleChildScrollView(
+                  physics: AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      // Header Section (Same for all users)
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isDesktop ? 80 : 20,
+                          vertical: isDesktop ? 50 : (isSmall ? 25 : 35),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            spreadRadius: 0,
-                            blurRadius: 25,
-                            offset: Offset(0, 10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0xffcc9657),
+                              Color(0xffa86418),
+                              Color(0xff8b5a2b),
+                            ],
+                            begin: Alignment.topRight,
+                            end: Alignment.bottomLeft,
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Top bar with date and settings
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              spreadRadius: 0,
+                              blurRadius: 25,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            // Top bar with date and settings
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(25),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      getFormattedDate(),
+                                      style: TextStyle(
+                                        fontSize: isSmall ? 14 : 16,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
+                                ),
+                                Container(
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(25),
+                                    borderRadius: BorderRadius.circular(15),
                                     border: Border.all(
                                       color: Colors.white.withOpacity(0.3),
                                       width: 1,
                                     ),
                                   ),
-                                  child: Text(
-                                    getFormattedDate(),
-                                    style: TextStyle(
-                                      fontSize: isSmall ? 14 : 16,
+                                  child: IconButton(
+                                    icon: Icon(
+                                      Icons.settings_outlined,
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                                      size: isSmall ? 22 : 26,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(15),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: IconButton(
-                                  icon: Icon(
-                                    Icons.settings_outlined,
-                                    color: Colors.white,
-                                    size: isSmall ? 22 : 26,
-                                  ),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => SettingPage(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(
-                              height: isDesktop ? 50 : (isSmall ? 30 : 40)),
-
-                          // User welcome section
-                          Column(
-                            children: [
-                              Text(
-                                "مرحباً بعودتك،",
-                                style: TextStyle(
-                                  fontSize:
-                                      isDesktop ? 24 : (isSmall ? 16 : 20),
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.white.withOpacity(0.9),
-                                ),
-                              ),
-                              SizedBox(height: 12),
-                              Text(
-                                name,
-                                style: TextStyle(
-                                  fontSize:
-                                      isDesktop ? 40 : (isSmall ? 24 : 30),
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                  shadows: [
-                                    Shadow(
-                                      blurRadius: 10.0,
-                                      color: Colors.black.withOpacity(0.3),
-                                      offset: Offset(2.0, 2.0),
-                                    ),
-                                  ],
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (position.isNotEmpty) ...[
-                                SizedBox(height: 16),
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.25),
-                                    borderRadius: BorderRadius.circular(25),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.4),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    position,
-                                    style: TextStyle(
-                                      fontSize:
-                                          isDesktop ? 18 : (isSmall ? 14 : 16),
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SettingPage(),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Main Actions Section
-                    Container(
-                      width: double.infinity,
-                      padding:
-                          EdgeInsets.all(isDesktop ? 80 : (isSmall ? 12 : 20)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "لوحة التحكم الرئيسية",
-                            style: TextStyle(
-                              fontSize: isDesktop ? 28 : (isSmall ? 20 : 24),
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xff2d3748),
                             ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            "الوصول السريع لجميع وظائف النظام",
-                            style: TextStyle(
-                              fontSize: isDesktop ? 16 : 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          SizedBox(height: isSmall ? 16 : 24),
+                            SizedBox(
+                                height: isDesktop ? 50 : (isSmall ? 30 : 40)),
 
-                          // Enhanced Grid layout for action cards
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              // Priority actions (top row)
-                              List<Widget> priorityActions = [
-                                RectangularActionCard(
-                                  title: "مهامي",
-                                  subtitle: "المهام المعينة لي",
-                                  icon: Icons.task_alt,
-                                  gradient: [
-                                    Color(0xff4299e1),
-                                    Color(0xff3182ce)
-                                  ],
-                                  onTap: navigateToTasksPage,
-                                  notificationCount: pendingTasksCount,
-                                ),
-                                RectangularActionCard(
-                                  title: "جميع المقالات",
-                                  subtitle: "عرض شامل للمقالات",
-                                  icon: Icons.library_books,
-                                  gradient: [
-                                    Color(0xff38b2ac),
-                                    Color(0xff319795)
-                                  ],
-                                  onTap: () {
-                                    print("hi");
-
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) =>
-                                              const AllDocumentsPage()),
-                                    );
-                                  },
-                                ),
-                                if (_canViewIncomingFiles())
-                                  RectangularActionCard(
-                                    title: "المقالات الواردة",
-                                    subtitle: "مقالات جديدة للمراجعة",
-                                    icon: Icons.article,
-                                    gradient: [
-                                      Color(0xfff56565),
-                                      Color(0xffe53e3e)
-                                    ],
-                                    onTap: () async {
-                                      // final result = await Navigator.push(
-                                      //   context,
-                                      //   MaterialPageRoute(
-                                      //     builder: (context) =>
-                                      //         IncomingFilesPage(),
-                                      //   ),
-                                      // );
-                                      // if (result == true) {
-                                      //   _loadIncomingFilesCount();
-                                      // }
-                                    },
-                                    notificationCount: incomingFilesCount,
+                            // User welcome section
+                            Column(
+                              children: [
+                                Text(
+                                  "مرحباً بعودتك،",
+                                  style: TextStyle(
+                                    fontSize:
+                                        isDesktop ? 24 : (isSmall ? 16 : 20),
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white.withOpacity(0.9),
                                   ),
-                              ];
-
-                              // Stage files (main section)
-                              List<Widget> stageActions = [
-                                RectangularActionCard(
-                                  title: "ملفات المرحلة 1",
-                                  subtitle: "مراجعة وموافقة أولية",
-                                  icon: Icons.filter_1,
-                                  gradient: [
-                                    Color(0xffe53e3e),
-                                    Color(0xffc53030)
-                                  ],
-                                  onTap: () => navigateToStageFiles(1),
                                 ),
-                                RectangularActionCard(
-                                  title: "ملفات المرحلة 2",
-                                  subtitle: "التحكيم والمراجعة العلمية",
-                                  icon: Icons.filter_2,
-                                  gradient: [
-                                    Color(0xffed8936),
-                                    Color(0xffdd6b20)
-                                  ],
-                                  onTap: () => navigateToStageFiles(2),
-                                ),
-                                RectangularActionCard(
-                                  title: "ملفات المرحلة 3",
-                                  subtitle: "التحرير النهائي والإخراج",
-                                  icon: Icons.filter_3,
-                                  gradient: [
-                                    Color(0xff9f7aea),
-                                    Color(0xff805ad5)
-                                  ],
-                                  onTap: () => navigateToStageFiles(3),
-                                ),
-                                RectangularActionCard(
-                                  title: "جاهز للنشر",
-                                  subtitle: "الملفات المكتملة",
-                                  icon: Icons.publish,
-                                  gradient: [
-                                    Color(0xff48bb78),
-                                    Color(0xff38a169)
-                                  ],
-                                  onTap: navigateToReadyToPublishFiles,
-                                ),
-                              ];
-
-                              // Management actions (bottom section)
-                              List<Widget> managementActions = [
-                                RectangularActionCard(
-                                  title: "المستخدمون",
-                                  subtitle: "إدارة المستخدمين",
-                                  icon: Icons.people_outline,
-                                  gradient: [
-                                    Color(0xff667eea),
-                                    Color(0xff764ba2)
-                                  ],
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => UsersPage(),
+                                SizedBox(height: 12),
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize:
+                                        isDesktop ? 40 : (isSmall ? 24 : 30),
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                    shadows: [
+                                      Shadow(
+                                        blurRadius: 10.0,
+                                        color: Colors.black.withOpacity(0.3),
+                                        offset: Offset(2.0, 2.0),
                                       ),
-                                    );
-                                  },
+                                    ],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                RectangularActionCard(
-                                  title: "الموقع الإلكتروني",
-                                  subtitle: "زيارة الموقع الرسمي",
-                                  icon: Icons.language,
-                                  gradient: [
-                                    Color(0xfffc8181),
-                                    Color(0xfff56565)
-                                  ],
-                                  onTap: () async {
-                                    final Uri url =
-                                        Uri.parse('https://qiraatafrican.com/');
-                                    await launchUrl(url);
-                                  },
-                                ),
-                              ];
-
-                              return Column(
-                                children: [
-                                  // Priority Actions Section
-                                  if (priorityActions.isNotEmpty) ...[
-                                    Row(
-                                      children: [
-                                        Icon(Icons.priority_high,
-                                            color: Color(0xffa86418), size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          "أولويات اليوم",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xff2d3748),
-                                          ),
-                                        ),
-                                      ],
+                                if (position.isNotEmpty) ...[
+                                  SizedBox(height: 16),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
                                     ),
-                                    SizedBox(height: 12),
-                                    GridView.count(
-                                      shrinkWrap: true,
-                                      physics: NeverScrollableScrollPhysics(),
-                                      crossAxisCount: isDesktop
-                                          ? (priorityActions.length >= 3
-                                              ? 3
-                                              : 2)
-                                          : 1,
-                                      crossAxisSpacing: 16,
-                                      mainAxisSpacing: 16,
-                                      childAspectRatio: isDesktop ? 3.2 : 4.0,
-                                      children: priorityActions,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.25),
+                                      borderRadius: BorderRadius.circular(25),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 1,
+                                      ),
                                     ),
-                                    SizedBox(height: 32),
-                                  ],
-
-                                  // Stage Files Section
-                                  Row(
-                                    children: [
-                                      Icon(Icons.group_work_rounded,
-                                          color: Color(0xffa86418), size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "مراحل سير العمل",
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xff2d3748),
-                                        ),
+                                    child: Text(
+                                      position,
+                                      style: TextStyle(
+                                        fontSize: isDesktop
+                                            ? 18
+                                            : (isSmall ? 14 : 16),
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  GridView.count(
-                                    shrinkWrap: true,
-                                    physics: NeverScrollableScrollPhysics(),
-                                    crossAxisCount: isDesktop ? 2 : 1,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: isDesktop ? 3.5 : 4.0,
-                                    children: stageActions,
-                                  ),
-                                  SizedBox(height: 32),
-
-                                  // Management Section
-                                  Row(
-                                    children: [
-                                      Icon(Icons.settings,
-                                          color: Color(0xffa86418), size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        "إدارة النظام",
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xff2d3748),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 12),
-                                  GridView.count(
-                                    shrinkWrap: true,
-                                    physics: NeverScrollableScrollPhysics(),
-                                    crossAxisCount: isDesktop ? 2 : 1,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: isDesktop ? 3.5 : 4.0,
-                                    children: managementActions,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+
+                      // Content Section - Different for Reviewers vs Others
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(
+                            isDesktop ? 80 : (isSmall ? 12 : 20)),
+                        child: _isReviewer()
+                            ? _buildReviewerContent(
+                                isDesktop, isTablet, isSmall)
+                            : _buildRegularUserContent(
+                                isDesktop, isTablet, isSmall),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -774,6 +627,683 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  // Build reviewer-specific content
+  Widget _buildReviewerContent(bool isDesktop, bool isTablet, bool isSmall) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(Icons.task_alt, color: Color(0xffa86418), size: 24),
+            SizedBox(width: 12),
+            Text(
+              "مهام المُحكِّم",
+              style: TextStyle(
+                fontSize: isDesktop ? 28 : (isSmall ? 20 : 24),
+                fontWeight: FontWeight.bold,
+                color: Color(0xff2d3748),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 8),
+        Text(
+          "المقالات المُسندة إليك للمراجعة والتحكيم",
+          style: TextStyle(
+            fontSize: isDesktop ? 16 : 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        SizedBox(height: 24),
+
+        // Statistics Cards
+        Row(
+          children: [
+            Expanded(
+              child: _buildReviewerStatCard(
+                title: "مُسندة إليّ",
+                count: _assignedToMe.length,
+                icon: Icons.assignment,
+                color: Color(0xff4299e1),
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: _buildReviewerStatCard(
+                title: "مُراجعة مُنجزة",
+                count: _reviewedByMe.length,
+                icon: Icons.check_circle,
+                color: Color(0xff48bb78),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 32),
+
+        // Tasks Tabs
+        DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TabBar(
+                  labelColor: Color(0xffa86418),
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: Color(0xffa86418),
+                  indicatorWeight: 3,
+                  tabs: [
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment, size: 18),
+                          SizedBox(width: 8),
+                          Text('مُسندة إليّ'),
+                          if (_assignedToMe.isNotEmpty) ...[
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Color(0xff4299e1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_assignedToMe.length}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle, size: 18),
+                          SizedBox(width: 8),
+                          Text('مراجعاتي المُنجزة'),
+                          if (_reviewedByMe.isNotEmpty) ...[
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Color(0xff48bb78),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_reviewedByMe.length}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                height: 500,
+                child: TabBarView(
+                  children: [
+                    _buildReviewerTasksList(_assignedToMe, isReviewed: false),
+                    _buildReviewerTasksList(_reviewedByMe, isReviewed: true),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Build regular user content (original menu)
+  Widget _buildRegularUserContent(bool isDesktop, bool isTablet, bool isSmall) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "لوحة التحكم الرئيسية",
+          style: TextStyle(
+            fontSize: isDesktop ? 28 : (isSmall ? 20 : 24),
+            fontWeight: FontWeight.bold,
+            color: Color(0xff2d3748),
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          "الوصول السريع لجميع وظائف النظام",
+          style: TextStyle(
+            fontSize: isDesktop ? 16 : 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        SizedBox(height: isSmall ? 16 : 24),
+
+        // Enhanced Grid layout for action cards
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Priority actions (top row)
+            List<Widget> priorityActions = [
+              RectangularActionCard(
+                title: "مهامي",
+                subtitle: "المهام المعينة لي",
+                icon: Icons.task_alt,
+                gradient: [Color(0xff4299e1), Color(0xff3182ce)],
+                onTap: navigateToTasksPage,
+                notificationCount: pendingTasksCount,
+              ),
+              RectangularActionCard(
+                title: "جميع المقالات",
+                subtitle: "عرض شامل للمقالات",
+                icon: Icons.library_books,
+                gradient: [Color(0xff38b2ac), Color(0xff319795)],
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AllDocumentsPage()),
+                  );
+                },
+              ),
+              if (_canViewIncomingFiles())
+                RectangularActionCard(
+                  title: "المقالات الواردة",
+                  subtitle: "مقالات جديدة للمراجعة",
+                  icon: Icons.article,
+                  gradient: [Color(0xfff56565), Color(0xffe53e3e)],
+                  onTap: () async {
+                    // Navigate to incoming files
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => IncomingFilesPage(),
+                      ),
+                    ).then((_) {
+                      _loadIncomingFilesCount();
+                    });
+                  },
+                  notificationCount: incomingFilesCount,
+                ),
+            ];
+
+            // Stage files (main section)
+            List<Widget> stageActions = [
+              RectangularActionCard(
+                title: "ملفات المرحلة 1",
+                subtitle: "مراجعة وموافقة أولية",
+                icon: Icons.filter_1,
+                gradient: [Color(0xffe53e3e), Color(0xffc53030)],
+                onTap: () => navigateToStageFiles(1),
+              ),
+              RectangularActionCard(
+                title: "ملفات المرحلة 2",
+                subtitle: "التحكيم والمراجعة العلمية",
+                icon: Icons.filter_2,
+                gradient: [Color(0xffed8936), Color(0xffdd6b20)],
+                onTap: () => navigateToStageFiles(2),
+              ),
+              RectangularActionCard(
+                title: "ملفات المرحلة 3",
+                subtitle: "التحرير النهائي والإخراج",
+                icon: Icons.filter_3,
+                gradient: [Color(0xff9f7aea), Color(0xff805ad5)],
+                onTap: () => navigateToStageFiles(3),
+              ),
+              RectangularActionCard(
+                title: "جاهز للنشر",
+                subtitle: "الملفات المكتملة",
+                icon: Icons.publish,
+                gradient: [Color(0xff48bb78), Color(0xff38a169)],
+                onTap: navigateToReadyToPublishFiles,
+              ),
+            ];
+
+            // Management actions (bottom section)
+            List<Widget> managementActions = [
+              RectangularActionCard(
+                title: "المستخدمون",
+                subtitle: "إدارة المستخدمين",
+                icon: Icons.people_outline,
+                gradient: [Color(0xff667eea), Color(0xff764ba2)],
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UsersPage(),
+                    ),
+                  );
+                },
+              ),
+              RectangularActionCard(
+                title: "الموقع الإلكتروني",
+                subtitle: "زيارة الموقع الرسمي",
+                icon: Icons.language,
+                gradient: [Color(0xfffc8181), Color(0xfff56565)],
+                onTap: () async {
+                  final Uri url = Uri.parse('https://qiraatafrican.com/');
+                  await launchUrl(url);
+                },
+              ),
+            ];
+
+            return Column(
+              children: [
+                // Priority Actions Section
+                if (priorityActions.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.priority_high,
+                          color: Color(0xffa86418), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        "أولويات اليوم",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff2d3748),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    crossAxisCount:
+                        isDesktop ? (priorityActions.length >= 3 ? 3 : 2) : 1,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: isDesktop ? 3.2 : 4.0,
+                    children: priorityActions,
+                  ),
+                  SizedBox(height: 32),
+                ],
+
+                // Stage Files Section
+                Row(
+                  children: [
+                    Icon(Icons.group_work_rounded,
+                        color: Color(0xffa86418), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "مراحل سير العمل",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff2d3748),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  crossAxisCount: isDesktop ? 2 : 1,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: isDesktop ? 3.5 : 4.0,
+                  children: stageActions,
+                ),
+                SizedBox(height: 32),
+
+                // Management Section
+                Row(
+                  children: [
+                    Icon(Icons.settings, color: Color(0xffa86418), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "إدارة النظام",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff2d3748),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  crossAxisCount: isDesktop ? 2 : 1,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: isDesktop ? 3.5 : 4.0,
+                  children: managementActions,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Build reviewer statistics card
+  Widget _buildReviewerStatCard({
+    required String title,
+    required int count,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.1),
+            color.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xff2d3748),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build reviewer tasks list
+  Widget _buildReviewerTasksList(List<DocumentModel> docs,
+      {required bool isReviewed}) {
+    if (_reviewerDataLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xffa86418)),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'جاري تحميل المهام...',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (docs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isReviewed
+                  ? Icons.check_circle_outline
+                  : Icons.assignment_outlined,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            SizedBox(height: 16),
+            Text(
+              isReviewed ? 'لا توجد مراجعات مُنجزة' : 'لا توجد مهام مُسندة',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              isReviewed
+                  ? 'ستظهر هنا المقالات التي راجعتها'
+                  : 'ستظهر هنا المقالات المُسندة إليك للمراجعة',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: docs.length,
+      itemBuilder: (context, index) =>
+          _buildReviewerDocCard(docs[index], isReviewed),
+    );
+  }
+
+  // Build reviewer document card
+  Widget _buildReviewerDocCard(DocumentModel d, bool isReviewed) {
+    final statusColor = AppStyles.getStage2StatusColor(d.status);
+    final statusIcon = AppStyles.getStage2StatusIcon(d.status);
+    final statusName = AppStyles.getStatusDisplayName(d.status);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Stage2ReviewerDetailsPage(document: d),
+            ),
+          );
+
+          // Reload reviewer data if needed
+          if (result == true || mounted) {
+            await _loadReviewerTasks();
+          }
+        },
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Status Row
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      statusName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isReviewed
+                          ? Colors.green.shade100
+                          : Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isReviewed ? 'مُنجز' : 'قيد المراجعة',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isReviewed
+                            ? Colors.green.shade700
+                            : Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+
+              // Document Title
+              if (d.title?.isNotEmpty == true)
+                Text(
+                  d.title!,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+              SizedBox(height: 8),
+
+              // Document URL/Path
+              if (d.documentUrl?.isNotEmpty == true)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    d.documentUrl!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+
+              SizedBox(height: 12),
+
+              // Timestamp and Assignment Info
+              Row(
+                children: [
+                  Icon(Icons.access_time,
+                      size: 16, color: Colors.grey.shade600),
+                  SizedBox(width: 4),
+                  Text(
+                    d.timestamp != null
+                        ? 'التاريخ: ${_formatDate(d.timestamp)}'
+                        : 'التاريخ غير محدد',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  Spacer(),
+                  if (!isReviewed && id.isNotEmpty) _buildAssignmentDate(d),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignmentDate(DocumentModel d) {
+    final reviewer = d.reviewers.firstWhere(
+      (r) => r.userId == id,
+      orElse: () => ReviewerModel(
+        userId: id,
+        name: '',
+        email: '',
+        position: '',
+        reviewStatus: AppConstants.REVIEWER_STATUS_PENDING,
+        assignedDate: DateTime.now(),
+      ),
+    );
+
+    return Text(
+      'أُسند في: ${_formatDate(reviewer.assignedDate)}',
+      style: TextStyle(
+        fontSize: 11,
+        color: Colors.grey.shade500,
+        fontStyle: FontStyle.italic,
+      ),
+    );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'غير محدد';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildAllStagesStatisticsGrid(bool isDesktop, bool isTablet) {
@@ -911,7 +1441,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   }
 }
 
-// Rectangular Action Card Widget (unchanged from original)
+// Rectangular Action Card Widget
 class RectangularActionCard extends StatefulWidget {
   final String title;
   final String subtitle;

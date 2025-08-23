@@ -1,7 +1,7 @@
 // widgets/sender_info_card.dart
 import 'package:flutter/material.dart';
-import '../Constants/App_Constants.dart';
-import '../models/document_model.dart';
+import '../../../../App_Constants.dart';
+import '../../../../models/document_model.dart';
 
 class SenderInfoCard extends StatelessWidget {
   final DocumentModel document;

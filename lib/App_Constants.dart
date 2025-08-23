@@ -1,8 +1,8 @@
 // constants/app_constants.dart - Updated with complete Stage 2 workflow and Editor Chief position
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
-import '../models/document_model.dart';
+import 'models/document_model.dart';
+// constants/app_constants.dart - Updated with complete Stage 3 workflow
 
 class AppConstants {
   // Colors
@@ -38,10 +38,19 @@ class AppConstants {
   static const String STAGE2_EDIT_REQUESTED = 'stage2_edit_requested';
   static const String STAGE2_WEBSITE_APPROVED = 'stage2_website_approved';
 
-  // STAGE 3: PRODUCTION WORKFLOW STATUSES (Placeholders for future implementation)
-  static const String LANGUAGE_EDITING = 'language_editing';
-  static const String LAYOUT_DESIGN = 'layout_design';
-  static const String FINAL_PRODUCTION = 'final_production';
+  // STAGE 3: PRODUCTION WORKFLOW STATUSES
+  static const String LAYOUT_DESIGN_STAGE3 = 'layout_design_stage3';
+  static const String LAYOUT_DESIGN_COMPLETED = 'layout_design_completed';
+  static const String MANAGING_EDITOR_REVIEW_LAYOUT =
+      'managing_editor_review_layout';
+  static const String HEAD_EDITOR_FIRST_REVIEW = 'head_editor_first_review';
+  static const String LAYOUT_REVISION_REQUESTED = 'layout_revision_requested';
+  static const String FINAL_REVIEW_STAGE = 'final_review_stage';
+  static const String FINAL_REVIEW_COMPLETED = 'final_review_completed';
+  static const String FINAL_MODIFICATIONS = 'final_modifications';
+  static const String MANAGING_EDITOR_FINAL_CHECK =
+      'managing_editor_final_check';
+  static const String HEAD_EDITOR_FINAL_APPROVAL = 'head_editor_final_approval';
   static const String PUBLISHED = 'published';
 
   // Strings
@@ -49,6 +58,66 @@ class AppConstants {
   static const String reviewAndManage = 'مراجعة وإدارة المستند';
   static const String processing = 'جاري المعالجة...';
   static const String pleaseWait = 'الرجاء الانتظار';
+
+  // Get next status based on action for Stage 1
+  static String getNextStatus(
+      String currentStatus, String action, String userPosition) {
+    switch (currentStatus) {
+      case INCOMING:
+        return SECRETARY_REVIEW;
+
+      case SECRETARY_REVIEW:
+        switch (action) {
+          case ACTION_APPROVE:
+            return SECRETARY_APPROVED;
+          case ACTION_REJECT:
+            return SECRETARY_REJECTED;
+          case ACTION_REQUEST_EDIT:
+            return SECRETARY_EDIT_REQUESTED;
+          default:
+            return currentStatus;
+        }
+
+      case SECRETARY_APPROVED:
+      case SECRETARY_EDIT_REQUESTED:
+        return EDITOR_REVIEW;
+
+      case EDITOR_REVIEW:
+        switch (action) {
+          case ACTION_APPROVE:
+            return EDITOR_APPROVED;
+          case ACTION_REJECT:
+            return EDITOR_REJECTED;
+          case ACTION_RECOMMEND_WEBSITE:
+            return EDITOR_WEBSITE_RECOMMENDED;
+          case ACTION_REQUEST_EDIT:
+            return EDITOR_EDIT_REQUESTED;
+          default:
+            return currentStatus;
+        }
+
+      case EDITOR_APPROVED:
+      case EDITOR_REJECTED:
+      case EDITOR_WEBSITE_RECOMMENDED:
+      case EDITOR_EDIT_REQUESTED:
+        return HEAD_REVIEW;
+
+      case HEAD_REVIEW:
+        switch (action) {
+          case ACTION_FINAL_APPROVE:
+            return STAGE1_APPROVED;
+          case ACTION_FINAL_REJECT:
+            return FINAL_REJECTED;
+          case ACTION_WEBSITE_APPROVE:
+            return WEBSITE_APPROVED;
+          default:
+            return currentStatus;
+        }
+
+      default:
+        return currentStatus;
+    }
+  }
 
   // Stage 1 Workflow Statuses List
   static const List<String> stage1Statuses = [
@@ -86,9 +155,17 @@ class AppConstants {
 
   // Stage 3 Workflow Statuses List
   static const List<String> stage3Statuses = [
-    LANGUAGE_EDITING,
-    LAYOUT_DESIGN,
-    FINAL_PRODUCTION,
+    STAGE2_APPROVED,
+    LAYOUT_DESIGN_STAGE3,
+    LAYOUT_DESIGN_COMPLETED,
+    MANAGING_EDITOR_REVIEW_LAYOUT,
+    HEAD_EDITOR_FIRST_REVIEW,
+    LAYOUT_REVISION_REQUESTED,
+    FINAL_REVIEW_STAGE,
+    FINAL_REVIEW_COMPLETED,
+    FINAL_MODIFICATIONS,
+    MANAGING_EDITOR_FINAL_CHECK,
+    HEAD_EDITOR_FINAL_APPROVAL,
     PUBLISHED,
   ];
 
@@ -131,9 +208,16 @@ class AppConstants {
     STAGE2_WEBSITE_APPROVED: 'موافق لنشر الموقع بعد التحكيم',
 
     // Stage 3
-    LANGUAGE_EDITING: 'التحرير اللغوي',
-    LAYOUT_DESIGN: 'التصميم والإخراج',
-    FINAL_PRODUCTION: 'الإنتاج النهائي',
+    LAYOUT_DESIGN_STAGE3: 'الإخراج الفني والتصميم',
+    LAYOUT_DESIGN_COMPLETED: 'انتهاء الإخراج الفني',
+    MANAGING_EDITOR_REVIEW_LAYOUT: 'مراجعة مدير التحرير للإخراج',
+    HEAD_EDITOR_FIRST_REVIEW: 'المراجعة الأولى لرئيس التحرير',
+    LAYOUT_REVISION_REQUESTED: 'مطلوب تعديل الإخراج',
+    FINAL_REVIEW_STAGE: 'المراجعة النهائية',
+    FINAL_REVIEW_COMPLETED: 'انتهاء المراجعة النهائية',
+    FINAL_MODIFICATIONS: 'التعديلات النهائية',
+    MANAGING_EDITOR_FINAL_CHECK: 'التحقق النهائي من مدير التحرير',
+    HEAD_EDITOR_FINAL_APPROVAL: 'الاعتماد النهائي',
     PUBLISHED: 'منشور',
   };
 
@@ -144,8 +228,8 @@ class AppConstants {
       'مدير التحرير'; // Same as MANAGING_EDITOR but for clarity
   static const String POSITION_HEAD_EDITOR = 'رئيس التحرير';
   static const String POSITION_REVIEWER = 'محكم';
-  static const String POSITION_LANGUAGE_EDITOR = 'مدقق لغوي';
-  static const String POSITION_LAYOUT_DESIGNER = 'مصمم إخراج';
+  static const String POSITION_LANGUAGE_EDITOR = 'المدقق اللغوي';
+  static const String POSITION_LAYOUT_DESIGNER = 'الاخراج الفني والتصميم';
   static const String POSITION_FINAL_REVIEWER = 'مراجع نهائي';
   static const String POSITION_AUTHOR = 'مؤلف';
 
@@ -173,8 +257,6 @@ class AppConstants {
   static const String ACTION_STAGE2_REJECT = 'stage2_reject';
   static const String ACTION_STAGE2_EDIT_REQUEST = 'stage2_edit_request';
   static const String ACTION_STAGE2_WEBSITE_APPROVE = 'stage2_website_approve';
-
-  // New Action Types for Language Editor workflow
   static const String ACTION_SEND_TO_LANGUAGE_EDITOR =
       'send_to_language_editor';
   static const String ACTION_COMPLETE_LANGUAGE_EDITING =
@@ -183,6 +265,22 @@ class AppConstants {
       'chef_approve_language_edit';
   static const String ACTION_CHEF_REJECT_LANGUAGE_EDIT =
       'chef_reject_language_edit';
+
+  // Action Types for Stage 3
+  static const String ACTION_SEND_TO_LAYOUT_DESIGNER =
+      'send_to_layout_designer';
+  static const String ACTION_COMPLETE_LAYOUT_DESIGN = 'complete_layout_design';
+  static const String ACTION_APPROVE_LAYOUT = 'approve_layout';
+  static const String ACTION_REQUEST_LAYOUT_REVISION =
+      'request_layout_revision';
+  static const String ACTION_SEND_TO_FINAL_REVIEWER = 'send_to_final_reviewer';
+  static const String ACTION_COMPLETE_FINAL_REVIEW = 'complete_final_review';
+  static const String ACTION_COMPLETE_FINAL_MODIFICATIONS =
+      'complete_final_modifications';
+  static const String ACTION_FINAL_APPROVE_FOR_PUBLICATION =
+      'final_approve_for_publication';
+  static const String ACTION_REQUEST_FINAL_MODIFICATIONS =
+      'request_final_modifications';
 
   // Reviewer Status
   static const String REVIEWER_STATUS_PENDING = 'Pending';
@@ -195,6 +293,84 @@ class AppConstants {
   static const String REVIEW_RECOMMENDATION_MINOR_REVISION = 'minor_revision';
   static const String REVIEW_RECOMMENDATION_MAJOR_REVISION = 'major_revision';
   static const String REVIEW_RECOMMENDATION_REJECT = 'reject';
+
+  // Stage 3 Workflow Progress Steps
+  static List<Map<String, dynamic>> getStage3WorkflowSteps() {
+    return [
+      {
+        'status': STAGE2_APPROVED,
+        'title': 'جاهز للإخراج الفني',
+        'subtitle': 'اعتماد المرحلة الثانية',
+        'icon': Icons.verified,
+        'description': 'تم اعتماد المقال من المرحلة الثانية',
+        'responsibleRole': 'النظام',
+      },
+      {
+        'status': LAYOUT_DESIGN_STAGE3,
+        'title': 'الإخراج الفني والتصميم',
+        'subtitle': 'تنسيق وإخراج المقال',
+        'icon': Icons.design_services,
+        'description': 'المخرج الفني يقوم بعمليات التنسيق والإخراج',
+        'responsibleRole': 'المخرج الفني',
+      },
+      {
+        'status': LAYOUT_DESIGN_COMPLETED,
+        'title': 'انتهاء الإخراج الفني',
+        'subtitle': 'اكتمال التصميم والإخراج',
+        'icon': Icons.check_circle_outline,
+        'description': 'انتهاء المخرج الفني من عمله',
+        'responsibleRole': 'النظام',
+      },
+      {
+        'status': MANAGING_EDITOR_REVIEW_LAYOUT,
+        'title': 'مراجعة مدير التحرير',
+        'subtitle': 'مراجعة الإخراج الفني',
+        'icon': Icons.supervisor_account,
+        'description': 'مدير التحرير يراجع الإخراج',
+        'responsibleRole': 'مدير التحرير',
+      },
+      {
+        'status': HEAD_EDITOR_FIRST_REVIEW,
+        'title': 'المراجعة الأولى لرئيس التحرير',
+        'subtitle': 'مراجعة أولى للإخراج',
+        'icon': Icons.admin_panel_settings,
+        'description': 'رئيس التحرير يراجع الإخراج',
+        'responsibleRole': 'رئيس التحرير',
+      },
+      {
+        'status': FINAL_REVIEW_STAGE,
+        'title': 'المراجعة النهائية',
+        'subtitle': 'مراجعة نهائية متخصصة',
+        'icon': Icons.fact_check,
+        'description': 'المراجع النهائي يسجل الملاحظات',
+        'responsibleRole': 'المراجع النهائي',
+      },
+      {
+        'status': FINAL_MODIFICATIONS,
+        'title': 'التعديلات النهائية',
+        'subtitle': 'تطبيق الملاحظات النهائية',
+        'icon': Icons.edit,
+        'description': 'المخرج الفني ينفذ التعديلات النهائية',
+        'responsibleRole': 'المخرج الفني',
+      },
+      {
+        'status': HEAD_EDITOR_FINAL_APPROVAL,
+        'title': 'الاعتماد النهائي',
+        'subtitle': 'اعتماد للطباعة والنشر',
+        'icon': Icons.verified_user,
+        'description': 'رئيس التحرير يعتمد للنشر النهائي',
+        'responsibleRole': 'رئيس التحرير',
+      },
+      {
+        'status': PUBLISHED,
+        'title': 'منشور',
+        'subtitle': 'تم النشر النهائي',
+        'icon': Icons.publish,
+        'description': 'تم نشر المقال نهائياً',
+        'responsibleRole': 'النظام',
+      },
+    ];
+  }
 
   // Stage 1 Workflow Progress Steps
   static List<Map<String, dynamic>> getStage1WorkflowSteps() {
@@ -285,7 +461,6 @@ class AppConstants {
         'description': 'مراجعة نتائج التحكيم',
         'responsibleRole': 'رئيس التحرير',
       },
-      // NEW STEPS
       {
         'status': LANGUAGE_EDITING_STAGE2,
         'title': 'التدقيق اللغوي',
@@ -313,70 +488,12 @@ class AppConstants {
     ];
   }
 
-  // Get next status based on action for Stage 1
-  static String getNextStatus(
-      String currentStatus, String action, String userPosition) {
-    switch (currentStatus) {
-      case INCOMING:
-        return SECRETARY_REVIEW;
-
-      case SECRETARY_REVIEW:
-        switch (action) {
-          case ACTION_APPROVE:
-            return SECRETARY_APPROVED;
-          case ACTION_REJECT:
-            return SECRETARY_REJECTED;
-          case ACTION_REQUEST_EDIT:
-            return SECRETARY_EDIT_REQUESTED;
-          default:
-            return currentStatus;
-        }
-
-      case SECRETARY_APPROVED:
-      case SECRETARY_EDIT_REQUESTED:
-        return EDITOR_REVIEW;
-
-      case EDITOR_REVIEW:
-        switch (action) {
-          case ACTION_APPROVE:
-            return EDITOR_APPROVED;
-          case ACTION_REJECT:
-            return EDITOR_REJECTED;
-          case ACTION_RECOMMEND_WEBSITE:
-            return EDITOR_WEBSITE_RECOMMENDED;
-          case ACTION_REQUEST_EDIT:
-            return EDITOR_EDIT_REQUESTED;
-          default:
-            return currentStatus;
-        }
-
-      case EDITOR_APPROVED:
-      case EDITOR_REJECTED:
-      case EDITOR_WEBSITE_RECOMMENDED:
-      case EDITOR_EDIT_REQUESTED:
-        return HEAD_REVIEW;
-
-      case HEAD_REVIEW:
-        switch (action) {
-          case ACTION_FINAL_APPROVE:
-            return STAGE1_APPROVED;
-          case ACTION_FINAL_REJECT:
-            return FINAL_REJECTED;
-          case ACTION_WEBSITE_APPROVE:
-            return WEBSITE_APPROVED;
-          default:
-            return currentStatus;
-        }
-
-      default:
-        return currentStatus;
-    }
-  }
-
+  // Get available actions for Stage 3
   static List<Map<String, dynamic>> getAvailableActions(
       String status, String userPosition) {
     List<Map<String, dynamic>> actions = [];
 
+    // Stage 1 and Stage 2 actions (existing code)
     switch (status) {
       case INCOMING:
         if (userPosition == POSITION_SECRETARY) {
@@ -504,6 +621,7 @@ class AppConstants {
         }
         break;
 
+      // Stage 2 actions
       case STAGE1_APPROVED:
         if (userPosition == POSITION_HEAD_EDITOR ||
             userPosition == POSITION_MANAGING_EDITOR ||
@@ -569,7 +687,7 @@ class AppConstants {
             {
               'action': ACTION_STAGE2_APPROVE,
               'title': 'الموافقة للمرحلة الثالثة',
-              'description': 'الموافقة للانتقال للتحرير اللغوي والإخراج',
+              'description': 'الموافقة للانتقال للإخراج الفني',
               'icon': Icons.verified,
               'color': Colors.green,
               'requiresAttachment': true,
@@ -620,10 +738,6 @@ class AppConstants {
         }
         break;
 
-      case LANGUAGE_EDITOR_COMPLETED:
-        // Automatically transitions to CHEF_REVIEW_LANGUAGE_EDIT — no actions needed.
-        break;
-
       case CHEF_REVIEW_LANGUAGE_EDIT:
         if (userPosition == POSITION_MANAGING_EDITOR ||
             userPosition == POSITION_EDITOR_CHIEF) {
@@ -650,6 +764,169 @@ class AppConstants {
           ]);
         }
         break;
+
+      // NEW STAGE 3 ACTIONS
+      case STAGE2_APPROVED:
+        if (userPosition == POSITION_HEAD_EDITOR ||
+            userPosition == POSITION_MANAGING_EDITOR ||
+            userPosition == POSITION_EDITOR_CHIEF) {
+          actions.add({
+            'action': ACTION_SEND_TO_LAYOUT_DESIGNER,
+            'title': 'إرسال للإخراج الفني',
+            'description': 'إرسال المقال للمخرج الفني للتصميم والإخراج',
+            'icon': Icons.design_services,
+            'color': Colors.purple,
+            'requiresAttachment': false,
+            'requiresComment': true,
+          });
+        }
+        break;
+
+      case LAYOUT_DESIGN_STAGE3:
+        if (userPosition == POSITION_LAYOUT_DESIGNER) {
+          actions.add({
+            'action': ACTION_COMPLETE_LAYOUT_DESIGN,
+            'title': 'إنهاء الإخراج الفني',
+            'description': 'إرسال المقال بعد انتهاء التصميم والإخراج',
+            'icon': Icons.send,
+            'color': Colors.green,
+            'requiresAttachment': true,
+            'requiresComment': true,
+          });
+        }
+        break;
+
+      case LAYOUT_DESIGN_COMPLETED:
+      case MANAGING_EDITOR_REVIEW_LAYOUT:
+        if (userPosition == POSITION_MANAGING_EDITOR ||
+            userPosition == POSITION_EDITOR_CHIEF) {
+          actions.addAll([
+            {
+              'action': ACTION_APPROVE_LAYOUT,
+              'title': 'الموافقة على الإخراج',
+              'description': 'الموافقة على الإخراج وإرساله لرئيس التحرير',
+              'icon': Icons.check_circle,
+              'color': Colors.green,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_LAYOUT_REVISION,
+              'title': 'طلب تعديل الإخراج',
+              'description': 'طلب تعديلات على الإخراج الفني',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case HEAD_EDITOR_FIRST_REVIEW:
+        if (userPosition == POSITION_HEAD_EDITOR) {
+          actions.addAll([
+            {
+              'action': ACTION_SEND_TO_FINAL_REVIEWER,
+              'title': 'إرسال للمراجعة النهائية',
+              'description': 'إرسال للمراجع النهائي',
+              'icon': Icons.fact_check,
+              'color': Colors.blue,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_LAYOUT_REVISION,
+              'title': 'طلب تعديل الإخراج',
+              'description': 'إعادة للمخرج الفني لتعديل الإخراج',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case FINAL_REVIEW_STAGE:
+        if (userPosition == POSITION_FINAL_REVIEWER) {
+          actions.add({
+            'action': ACTION_COMPLETE_FINAL_REVIEW,
+            'title': 'إنهاء المراجعة النهائية',
+            'description': 'إرسال الملاحظات النهائية للإخراج',
+            'icon': Icons.send,
+            'color': Colors.green,
+            'requiresAttachment': true,
+            'requiresComment': true,
+          });
+        }
+        break;
+
+      case FINAL_REVIEW_COMPLETED:
+      case FINAL_MODIFICATIONS:
+        if (userPosition == POSITION_LAYOUT_DESIGNER) {
+          actions.add({
+            'action': ACTION_COMPLETE_FINAL_MODIFICATIONS,
+            'title': 'إنهاء التعديلات النهائية',
+            'description': 'إرسال المقال بعد التعديلات النهائية',
+            'icon': Icons.send,
+            'color': Colors.green,
+            'requiresAttachment': true,
+            'requiresComment': true,
+          });
+        }
+        break;
+
+      case MANAGING_EDITOR_FINAL_CHECK:
+        if (userPosition == POSITION_MANAGING_EDITOR ||
+            userPosition == POSITION_EDITOR_CHIEF) {
+          actions.addAll([
+            {
+              'action': ACTION_APPROVE_LAYOUT,
+              'title': 'تأكيد الإنجاز',
+              'description': 'تأكيد إنجاز جميع التعديلات وإرساله لرئيس التحرير',
+              'icon': Icons.check_circle,
+              'color': Colors.green,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_FINAL_MODIFICATIONS,
+              'title': 'إعادة للتعديل',
+              'description': 'إعادة للمخرج الفني لتعديلات إضافية',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
+
+      case HEAD_EDITOR_FINAL_APPROVAL:
+        if (userPosition == POSITION_HEAD_EDITOR) {
+          actions.addAll([
+            {
+              'action': ACTION_FINAL_APPROVE_FOR_PUBLICATION,
+              'title': 'اعتماد للنشر النهائي',
+              'description': 'اعتماد المقال للطباعة والنشر النهائي',
+              'icon': Icons.publish,
+              'color': Colors.green,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+            {
+              'action': ACTION_REQUEST_FINAL_MODIFICATIONS,
+              'title': 'ملاحظات إضافية',
+              'description': 'إرسال ملاحظات إضافية للمخرج الفني',
+              'icon': Icons.edit,
+              'color': Colors.orange,
+              'requiresAttachment': false,
+              'requiresComment': true,
+            },
+          ]);
+        }
+        break;
     }
 
     return actions;
@@ -666,7 +943,7 @@ class AppConstants {
     '.odt': 'application/vnd.oasis.opendocument.text',
   };
 
-  // User Roles (Extended with reviewer types)
+  // User Roles (Extended with new Stage 3 positions)
   static const List<String> userRoles = [
     POSITION_SECRETARY,
     POSITION_MANAGING_EDITOR,
@@ -728,9 +1005,14 @@ class AppConstants {
   static const int REVIEW_DEADLINE_DAYS = 14;
   static const int REVIEW_REMINDER_DAYS = 7;
   static const int REVIEW_OVERDUE_DAYS = 21;
+
+  // Stage 3 timeline constants (in days)
+  static const int LAYOUT_DESIGN_DEADLINE_DAYS = 7;
+  static const int FINAL_REVIEW_DEADLINE_DAYS = 3;
+  static const int FINAL_MODIFICATIONS_DEADLINE_DAYS = 3;
 }
 
-// Constants/Style.dart - Updated with Stage 2 styles
+// Constants/Style.dart - Updated with Stage 3 styles
 class AppStyles {
   // Colors
   static const Color primaryColor = Color(0xffa86418);
@@ -838,8 +1120,9 @@ class AppStyles {
     border: Border.all(color: Colors.red.shade200),
   );
 
-  // Status Colors for Stage 1
+  // Status Colors - Updated to include all stages
   static Color getStatusColor(String status) {
+    // Stage 1 Colors
     switch (status) {
       case AppConstants.INCOMING:
         return Colors.blue.shade600;
@@ -870,7 +1153,13 @@ class AppStyles {
       case AppConstants.WEBSITE_APPROVED:
         return Colors.blue.shade700;
       default:
-        return getStage2StatusColor(status);
+        // Check Stage 2 and Stage 3
+        if (AppConstants.stage2Statuses.contains(status)) {
+          return getStage2StatusColor(status);
+        } else if (AppConstants.stage3Statuses.contains(status)) {
+          return getStage3StatusColor(status);
+        }
+        return Colors.grey.shade600;
     }
   }
 
@@ -904,39 +1193,41 @@ class AppStyles {
     }
   }
 
-  Map<String, dynamic> getStage2Progress(DocumentModel document) {
-    final steps = AppConstants.getStage2WorkflowSteps();
-    int currentStepIndex = -1;
-
-    for (int i = 0; i < steps.length; i++) {
-      if (steps[i]['status'] == document.status) {
-        currentStepIndex = i;
-        break;
-      }
+  // NEW: Status Colors for Stage 3
+  static Color getStage3StatusColor(String status) {
+    switch (status) {
+      case AppConstants.STAGE2_APPROVED:
+        return Colors.green.shade700; // Ready for layout
+      case AppConstants.LAYOUT_DESIGN_STAGE3:
+        return Colors.purple.shade600; // In layout design
+      case AppConstants.LAYOUT_DESIGN_COMPLETED:
+        return Colors.purple.shade700; // Layout completed
+      case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
+        return Colors.indigo.shade600; // Managing editor review
+      case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
+        return Colors.indigo.shade700; // Head editor first review
+      case AppConstants.LAYOUT_REVISION_REQUESTED:
+        return Colors.orange.shade600; // Layout revision needed
+      case AppConstants.FINAL_REVIEW_STAGE:
+        return Colors.blue.shade600; // Final review
+      case AppConstants.FINAL_REVIEW_COMPLETED:
+        return Colors.blue.shade700; // Final review completed
+      case AppConstants.FINAL_MODIFICATIONS:
+        return Colors.deepOrange.shade600; // Final modifications
+      case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
+        return Colors.teal.shade600; // Managing editor final check
+      case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
+        return Colors.deepPurple.shade600; // Head editor final approval
+      case AppConstants.PUBLISHED:
+        return Colors.green.shade800; // Published
+      default:
+        return Colors.grey.shade600;
     }
-
-    if (currentStepIndex == -1) {
-      if (AppStyles.isStage2FinalStatus(document.status)) {
-        currentStepIndex = steps.length;
-      }
-    }
-
-    double progressPercentage =
-        currentStepIndex >= 0 ? (currentStepIndex + 1) / steps.length : 0.0;
-
-    return {
-      'currentStepIndex': currentStepIndex,
-      'totalSteps': steps.length,
-      'progressPercentage': progressPercentage,
-      'isCompleted': AppStyles.isStage2FinalStatus(document.status),
-      'currentStep': currentStepIndex >= 0 && currentStepIndex < steps.length
-          ? steps[currentStepIndex]
-          : null,
-    };
   }
 
-  // Status Icons for Stage 1
+  // Status Icons - Updated to include all stages
   static IconData getStatusIcon(String status) {
+    // Stage 1 Icons
     switch (status) {
       case AppConstants.INCOMING:
         return Icons.inbox;
@@ -967,7 +1258,13 @@ class AppStyles {
       case AppConstants.WEBSITE_APPROVED:
         return Icons.web_asset;
       default:
-        return getStage2StatusIcon(status);
+        // Check Stage 2 and Stage 3
+        if (AppConstants.stage2Statuses.contains(status)) {
+          return getStage2StatusIcon(status);
+        } else if (AppConstants.stage3Statuses.contains(status)) {
+          return getStage3StatusIcon(status);
+        }
+        return Icons.circle;
     }
   }
 
@@ -1001,6 +1298,38 @@ class AppStyles {
     }
   }
 
+  // NEW: Status Icons for Stage 3
+  static IconData getStage3StatusIcon(String status) {
+    switch (status) {
+      case AppConstants.STAGE2_APPROVED:
+        return Icons.verified; // Ready for layout
+      case AppConstants.LAYOUT_DESIGN_STAGE3:
+        return Icons.design_services; // In layout design
+      case AppConstants.LAYOUT_DESIGN_COMPLETED:
+        return Icons.check_circle_outline; // Layout completed
+      case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
+        return Icons.supervisor_account; // Managing editor review
+      case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
+        return Icons.admin_panel_settings; // Head editor first review
+      case AppConstants.LAYOUT_REVISION_REQUESTED:
+        return Icons.edit; // Layout revision needed
+      case AppConstants.FINAL_REVIEW_STAGE:
+        return Icons.fact_check; // Final review
+      case AppConstants.FINAL_REVIEW_COMPLETED:
+        return Icons.check_circle; // Final review completed
+      case AppConstants.FINAL_MODIFICATIONS:
+        return Icons.build; // Final modifications
+      case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
+        return Icons.verified_user; // Managing editor final check
+      case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
+        return Icons.approval; // Head editor final approval
+      case AppConstants.PUBLISHED:
+        return Icons.publish; // Published
+      default:
+        return Icons.circle;
+    }
+  }
+
   // Helper method to get display name
   static String getStatusDisplayName(String status) {
     return AppConstants.statusDisplayNames[status] ?? status;
@@ -1014,6 +1343,11 @@ class AppStyles {
   // Check if status is in Stage 2
   static bool isStage2Status(String status) {
     return AppConstants.stage2Statuses.contains(status);
+  }
+
+  // NEW: Check if status is in Stage 3
+  static bool isStage3Status(String status) {
+    return AppConstants.stage3Statuses.contains(status);
   }
 
   // Check if status is a final state in Stage 1
@@ -1035,12 +1369,82 @@ class AppStyles {
     ].contains(status);
   }
 
+  // NEW: Check if status is a final state in Stage 3
+  static bool isStage3FinalStatus(String status) {
+    return [
+      AppConstants.PUBLISHED,
+    ].contains(status);
+  }
+
   // Get stage number for status
   static int getStageNumber(String status) {
     if (AppConstants.stage1Statuses.contains(status)) return 1;
     if (AppConstants.stage2Statuses.contains(status)) return 2;
     if (AppConstants.stage3Statuses.contains(status)) return 3;
     return 0;
+  }
+
+  // NEW: Get Stage 3 progress
+  Map<String, dynamic> getStage3Progress(DocumentModel document) {
+    final steps = AppConstants.getStage3WorkflowSteps();
+    int currentStepIndex = -1;
+
+    for (int i = 0; i < steps.length; i++) {
+      if (steps[i]['status'] == document.status) {
+        currentStepIndex = i;
+        break;
+      }
+    }
+
+    if (currentStepIndex == -1) {
+      if (AppStyles.isStage3FinalStatus(document.status)) {
+        currentStepIndex = steps.length;
+      }
+    }
+
+    double progressPercentage =
+        currentStepIndex >= 0 ? (currentStepIndex + 1) / steps.length : 0.0;
+
+    return {
+      'currentStepIndex': currentStepIndex,
+      'totalSteps': steps.length,
+      'progressPercentage': progressPercentage,
+      'isCompleted': AppStyles.isStage3FinalStatus(document.status),
+      'currentStep': currentStepIndex >= 0 && currentStepIndex < steps.length
+          ? steps[currentStepIndex]
+          : null,
+    };
+  }
+
+  Map<String, dynamic> getStage2Progress(DocumentModel document) {
+    final steps = AppConstants.getStage2WorkflowSteps();
+    int currentStepIndex = -1;
+
+    for (int i = 0; i < steps.length; i++) {
+      if (steps[i]['status'] == document.status) {
+        currentStepIndex = i;
+        break;
+      }
+    }
+
+    if (currentStepIndex == -1) {
+      if (AppStyles.isStage2FinalStatus(document.status)) {
+        currentStepIndex = steps.length;
+      }
+    }
+
+    double progressPercentage =
+        currentStepIndex >= 0 ? (currentStepIndex + 1) / steps.length : 0.0;
+
+    return {
+      'currentStepIndex': currentStepIndex,
+      'totalSteps': steps.length,
+      'progressPercentage': progressPercentage,
+      'isCompleted': AppStyles.isStage2FinalStatus(document.status),
+      'currentStep': currentStepIndex >= 0 && currentStepIndex < steps.length
+          ? steps[currentStepIndex]
+          : null,
+    };
   }
 
   static BoxDecoration successCardDecoration = BoxDecoration(

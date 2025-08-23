@@ -43,7 +43,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final Color accentColor = const Color(0xffd7a45d);
   final Color backgroundColor = const Color(0xfffaf6f0);
 
-  // Updated positions list with new roles
+  // Updated positions list with new roles including final reviewer
   final List<String> positions = [
     'سكرتير تحرير',
     'مدير التحرير',
@@ -51,6 +51,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     'محكم',
     'المدقق اللغوي',
     'الاخراج الفني والتصميم',
+    'مراجع نهائي', // Added final reviewer position
   ];
 
   final List<String> mohakkemTypes = [
@@ -59,7 +60,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     'اجتماعي',
   ];
 
-  // Position descriptions for better UX
+  // Position descriptions for better UX including final reviewer
   final Map<String, String> positionDescriptions = {
     'سكرتير تحرير': 'يراجع ويدير المستندات في المراحل الأولية والنهائية',
     'مدير التحرير': 'يشرف على عملية التحرير وتعيين المحكمين',
@@ -67,6 +68,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     'محكم': 'يراجع ويقيم المحتوى الأكاديمي للمستندات',
     'المدقق اللغوي': 'يراجع ويصحح الأخطاء اللغوية والنحوية',
     'الاخراج الفني والتصميم': 'يتولى التصميم والإخراج الفني للمستندات',
+    'مراجع نهائي':
+        'يقوم بالمراجعة النهائية والتدقيق قبل النشر', // Added description for final reviewer
   };
 
   @override

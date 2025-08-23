@@ -1,6 +1,6 @@
 // widgets/status_progress_bar.dart - Updated for Stage 1 Approval Workflow
 import 'package:flutter/material.dart';
-import '../Constants/App_Constants.dart';
+import '../../../../App_Constants.dart';
 
 class StatusProgressBar extends StatelessWidget {
   final String status;

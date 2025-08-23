@@ -12,8 +12,9 @@ import 'dart:ui' as ui;
 import 'package:universal_html/html.dart' as html;
 
 import '../../../Classes/current_user_providerr.dart';
-import 'Constants/App_Constants.dart';
-import 'Services/Document_Services.dart';
+import '../../../App_Constants.dart';
+import '../../../Document_Services.dart';
+import '../../../models/document_model.dart';
 import 'Widgets/ActionButtons.dart';
 import 'Widgets/DocumentHeader.dart';
 import 'Widgets/DocumentInfoCard.dart';
@@ -21,7 +22,6 @@ import 'Widgets/LoadingOverlay.dart';
 import 'Widgets/senderinfocard.dart';
 import 'Widgets/Action_history.dart';
 import 'Widgets/statusbar.dart';
-import 'models/document_model.dart';
 
 class DocumentDetailsPage extends StatefulWidget {
   final DocumentSnapshot document;

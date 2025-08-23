@@ -11,8 +11,8 @@ import 'package:path/path.dart' as path;
 // Web imports
 import 'dart:html' as html;
 
-import '../Constants/App_Constants.dart';
-import '../models/document_model.dart';
+import '../../../../App_Constants.dart';
+import '../../../../models/document_model.dart';
 
 class ActionHistoryWidget extends StatelessWidget {
   final List<ActionLogModel> actionLog;

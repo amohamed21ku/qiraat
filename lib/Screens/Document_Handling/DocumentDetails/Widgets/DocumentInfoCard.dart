@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 
-import '../Constants/App_Constants.dart';
-import '../Services/Document_Services.dart';
-import '../models/document_model.dart';
+import '../../../../App_Constants.dart';
+import '../../../../Document_Services.dart';
+import '../../../../models/document_model.dart';
 
 class DocumentInfoCard extends StatelessWidget {
   final DocumentModel document;

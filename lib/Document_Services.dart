@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
-import '../Constants/App_Constants.dart';
-import '../models/document_model.dart';
+import 'App_Constants.dart';
 // Use alias to avoid conflicts
 import '../models/reviewerModel.dart' as ReviewerModelFile;
+import 'models/document_model.dart';
 
 class DocumentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -143,7 +143,8 @@ class DocumentService {
     }
   }
 
-// NEW: Method to handle Chef Editor review of language editing
+// Updated submitChefEditorLanguageReview method in Document_Services.dart
+
   Future<void> submitChefEditorLanguageReview(
     String documentId,
     String chefEditorId,
@@ -158,11 +159,11 @@ class DocumentService {
       if (decision == 'approve') {
         nextStatus = AppConstants
             .HEAD_REVIEW_STAGE2; // Back to head editor for final decision
-        actionDescription = 'الموافقة على التدقيق اللغوي';
+        actionDescription = 'الموافقة على التدقيق اللغوي - إرسال لرئيس التحرير';
       } else {
         nextStatus =
             AppConstants.LANGUAGE_EDITING_STAGE2; // Back to language editor
-        actionDescription = 'إعادة للتدقيق اللغوي';
+        actionDescription = 'إعادة للتدقيق اللغوي للتحسين';
       }
 
       final actionLog = ActionLogModel(
@@ -189,11 +190,15 @@ class DocumentService {
       if (decision == 'approve') {
         updateData['languageEditingApproved'] = true;
         updateData['readyForFinalDecision'] = true;
-        updateData['currentStage'] = 'head_review_stage2_final';
+        updateData['currentStage'] = 'head_review_stage2_after_language';
+        updateData['headReviewStage2RestartDate'] =
+            FieldValue.serverTimestamp();
       } else {
         updateData['languageEditingApproved'] = false;
         updateData['languageEditingRejectedReason'] = comment;
         updateData['currentStage'] = 'language_editing_revision';
+        updateData['languageEditingRevisionDate'] =
+            FieldValue.serverTimestamp();
       }
 
       await _firestore
@@ -340,6 +345,8 @@ class DocumentService {
   //   }
   // }
 
+  // Updated method in Document_Services.dart
+// Updated method in Document_Services.dart
   Future<void> submitLanguageEditorReview(
     String documentId,
     String languageEditorId,
@@ -358,27 +365,77 @@ class DocumentService {
         attachedFileName: reviewData['attachedFileName'],
       );
 
+      // Automatic transition to chef review
+      final transitionActionLog = ActionLogModel(
+        action: 'انتقال تلقائي لمراجعة مدير التحرير',
+        userName: 'النظام',
+        userPosition: 'تلقائي',
+        performedById: 'system',
+        timestamp: DateTime.now(),
+        comment: 'تم انتهاء التدقيق اللغوي، انتقال تلقائي لمراجعة مدير التحرير',
+      );
+
       await _firestore.collection('sent_documents').doc(documentId).update({
-        'status': AppConstants.LANGUAGE_EDITOR_COMPLETED,
+        'status': AppConstants
+            .CHEF_REVIEW_LANGUAGE_EDIT, // Changed from LANGUAGE_EDITOR_COMPLETED
         'languageEditingCompletedDate': FieldValue.serverTimestamp(),
         'languageEditingCompletedBy': languageEditorName,
         'languageEditingCompletedById': languageEditorId,
         'languageEditingData': {
+          'corrections': reviewData['corrections'] ?? '',
+          'suggestions': reviewData['suggestions'] ?? '',
           'comment': reviewData['comment'],
           'attachedFileUrl': reviewData['attachedFileUrl'],
           'attachedFileName': reviewData['attachedFileName'],
-          'corrections': reviewData['corrections'] ?? '',
-          'suggestions': reviewData['suggestions'] ?? '',
           'completedDate': Timestamp.now(),
         },
-        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'currentStage': 'chef_review_language_edit',
+        'readyForChefLanguageReview': true,
+        'actionLog': FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]),
         'lastUpdated': FieldValue.serverTimestamp(),
-        'lastUpdatedBy': languageEditorName,
+        'lastUpdatedBy': 'النظام - انتقال تلقائي',
       });
 
-      debugPrint('Language editor review submitted successfully');
+      debugPrint(
+          'Language editor review submitted and transitioned to chef review');
     } catch (e) {
       debugPrint('Error submitting language editor review: $e');
+      rethrow;
+    }
+  }
+  // Add this method to Document_Services.dart
+
+// Method to transition from LANGUAGE_EDITOR_COMPLETED to CHEF_REVIEW_LANGUAGE_EDIT
+  Future<void> startChefLanguageReview(
+    String documentId,
+    String chefEditorId,
+    String chefEditorName,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'بدء مراجعة مدير التحرير للتدقيق اللغوي',
+        userName: chefEditorName,
+        userPosition: AppConstants.POSITION_MANAGING_EDITOR,
+        performedById: chefEditorId,
+        timestamp: DateTime.now(),
+        comment: 'بدء مراجعة عمل المدقق اللغوي',
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.CHEF_REVIEW_LANGUAGE_EDIT,
+        'chefReviewLanguageEditStartDate': FieldValue.serverTimestamp(),
+        'chefReviewLanguageEditBy': chefEditorName,
+        'chefReviewLanguageEditById': chefEditorId,
+        'currentStage': 'chef_review_language_edit',
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': chefEditorName,
+      });
+
+      debugPrint('Chef editor language review started successfully');
+    } catch (e) {
+      debugPrint('Error starting chef editor language review: $e');
       rethrow;
     }
   }
@@ -1517,6 +1574,711 @@ class DocumentService {
         .any((hiddenAction) => action.action.contains(hiddenAction));
   }
 
+  // Stage 3 Methods - Add these to your existing Document_Services.dart
+
+  // ==================== STAGE 3 METHODS ====================
+
+  /// Send document to layout designer (from STAGE2_APPROVED)
+  Future<void> sendToLayoutDesigner(
+    String documentId,
+    String assignedBy,
+    String assignedByName,
+    String assignedByPosition,
+    String comment,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إرسال للإخراج الفني',
+        userName: assignedByName,
+        userPosition: assignedByPosition,
+        performedById: assignedBy,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.LAYOUT_DESIGN_STAGE3,
+        'layoutDesignStartDate': FieldValue.serverTimestamp(),
+        'layoutDesignAssignedBy': assignedByName,
+        'layoutDesignAssignedById': assignedBy,
+        'currentStage': 'layout_design',
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': assignedByName,
+      });
+
+      debugPrint('Document sent to layout designer successfully');
+    } catch (e) {
+      debugPrint('Error sending to layout designer: $e');
+      rethrow;
+    }
+  }
+
+  /// Layout designer completes work
+  Future<void> submitLayoutDesign(
+    String documentId,
+    String layoutDesignerId,
+    String layoutDesignerName,
+    Map<String, dynamic> layoutData,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إنهاء الإخراج الفني',
+        userName: layoutDesignerName,
+        userPosition: AppConstants.POSITION_LAYOUT_DESIGNER,
+        performedById: layoutDesignerId,
+        timestamp: DateTime.now(),
+        comment: layoutData['comment'] ?? '',
+        attachedFileUrl: layoutData['attachedFileUrl'],
+        attachedFileName: layoutData['attachedFileName'],
+      );
+
+      // Automatic transition to managing editor review
+      final transitionActionLog = ActionLogModel(
+        action: 'انتقال تلقائي لمراجعة مدير التحرير',
+        userName: 'النظام',
+        userPosition: 'تلقائي',
+        performedById: 'system',
+        timestamp: DateTime.now(),
+        comment: 'تم انتهاء الإخراج الفني، انتقال تلقائي لمراجعة مدير التحرير',
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+        'layoutDesignCompletedDate': FieldValue.serverTimestamp(),
+        'layoutDesignCompletedBy': layoutDesignerName,
+        'layoutDesignCompletedById': layoutDesignerId,
+        'layoutDesignData': {
+          'comment': layoutData['comment'],
+          'attachedFileUrl': layoutData['attachedFileUrl'],
+          'attachedFileName': layoutData['attachedFileName'],
+          'completedDate': Timestamp.now(),
+        },
+        'currentStage': 'managing_editor_review_layout',
+        'actionLog': FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': 'النظام - انتقال تلقائي',
+      });
+
+      debugPrint('Layout design submitted successfully');
+    } catch (e) {
+      debugPrint('Error submitting layout design: $e');
+      rethrow;
+    }
+  }
+
+  /// Managing editor reviews layout
+  Future<void> submitManagingEditorLayoutReview(
+    String documentId,
+    String managingEditorId,
+    String managingEditorName,
+    String decision, // 'approve' or 'request_revision'
+    String comment,
+  ) async {
+    try {
+      String nextStatus;
+      String actionDescription;
+
+      if (decision == 'approve') {
+        nextStatus = AppConstants.HEAD_EDITOR_FIRST_REVIEW;
+        actionDescription = 'الموافقة على الإخراج - إرسال لرئيس التحرير';
+      } else {
+        nextStatus = AppConstants.LAYOUT_REVISION_REQUESTED;
+        actionDescription = 'طلب تعديل الإخراج';
+      }
+
+      final actionLog = ActionLogModel(
+        action: actionDescription,
+        userName: managingEditorName,
+        userPosition: AppConstants.POSITION_MANAGING_EDITOR,
+        performedById: managingEditorId,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      final updateData = <String, dynamic>{
+        'status': nextStatus,
+        'managingEditorLayoutReviewDate': FieldValue.serverTimestamp(),
+        'managingEditorLayoutReviewBy': managingEditorName,
+        'managingEditorLayoutReviewById': managingEditorId,
+        'managingEditorLayoutReviewComment': comment,
+        'managingEditorLayoutDecision': decision,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': managingEditorName,
+      };
+
+      if (decision == 'approve') {
+        updateData['currentStage'] = 'head_editor_first_review';
+      } else {
+        updateData['currentStage'] = 'layout_revision';
+        updateData['layoutRevisionRequestDate'] = FieldValue.serverTimestamp();
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Managing editor layout review submitted: $decision');
+    } catch (e) {
+      debugPrint('Error submitting managing editor layout review: $e');
+      rethrow;
+    }
+  }
+
+  /// Head editor first review
+  Future<void> submitHeadEditorFirstReview(
+    String documentId,
+    String headEditorId,
+    String headEditorName,
+    String decision, // 'send_to_final_review' or 'request_revision'
+    String comment,
+  ) async {
+    try {
+      String nextStatus;
+      String actionDescription;
+
+      if (decision == 'send_to_final_review') {
+        nextStatus = AppConstants.FINAL_REVIEW_STAGE;
+        actionDescription = 'إرسال للمراجعة النهائية';
+      } else {
+        nextStatus = AppConstants.LAYOUT_REVISION_REQUESTED;
+        actionDescription = 'طلب تعديل الإخراج من رئيس التحرير';
+      }
+
+      final actionLog = ActionLogModel(
+        action: actionDescription,
+        userName: headEditorName,
+        userPosition: AppConstants.POSITION_HEAD_EDITOR,
+        performedById: headEditorId,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      final updateData = <String, dynamic>{
+        'status': nextStatus,
+        'headEditorFirstReviewDate': FieldValue.serverTimestamp(),
+        'headEditorFirstReviewBy': headEditorName,
+        'headEditorFirstReviewById': headEditorId,
+        'headEditorFirstReviewComment': comment,
+        'headEditorFirstReviewDecision': decision,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': headEditorName,
+      };
+
+      if (decision == 'send_to_final_review') {
+        updateData['currentStage'] = 'final_review';
+        updateData['finalReviewStartDate'] = FieldValue.serverTimestamp();
+      } else {
+        updateData['currentStage'] = 'layout_revision';
+        updateData['layoutRevisionRequestDate'] = FieldValue.serverTimestamp();
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Head editor first review submitted: $decision');
+    } catch (e) {
+      debugPrint('Error submitting head editor first review: $e');
+      rethrow;
+    }
+  }
+
+  /// Final reviewer submits review
+  Future<void> submitFinalReview(
+    String documentId,
+    String finalReviewerId,
+    String finalReviewerName,
+    Map<String, dynamic> reviewData,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إنهاء المراجعة النهائية',
+        userName: finalReviewerName,
+        userPosition: AppConstants.POSITION_FINAL_REVIEWER,
+        performedById: finalReviewerId,
+        timestamp: DateTime.now(),
+        comment: reviewData['comment'] ?? '',
+        attachedFileUrl: reviewData['attachedFileUrl'],
+        attachedFileName: reviewData['attachedFileName'],
+      );
+
+      // Automatic transition to final modifications
+      final transitionActionLog = ActionLogModel(
+        action: 'انتقال تلقائي للتعديلات النهائية',
+        userName: 'النظام',
+        userPosition: 'تلقائي',
+        performedById: 'system',
+        timestamp: DateTime.now(),
+        comment: 'تم انتهاء المراجعة النهائية، انتقال للتعديلات النهائية',
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.FINAL_MODIFICATIONS,
+        'finalReviewCompletedDate': FieldValue.serverTimestamp(),
+        'finalReviewCompletedBy': finalReviewerName,
+        'finalReviewCompletedById': finalReviewerId,
+        'finalReviewData': {
+          'comment': reviewData['comment'],
+          'notes': reviewData['notes'],
+          'attachedFileUrl': reviewData['attachedFileUrl'],
+          'attachedFileName': reviewData['attachedFileName'],
+          'completedDate': Timestamp.now(),
+        },
+        'currentStage': 'final_modifications',
+        'actionLog': FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': 'النظام - انتقال تلقائي',
+      });
+
+      debugPrint('Final review submitted successfully');
+    } catch (e) {
+      debugPrint('Error submitting final review: $e');
+      rethrow;
+    }
+  }
+
+  /// Layout designer submits final modifications
+  Future<void> submitFinalModifications(
+    String documentId,
+    String layoutDesignerId,
+    String layoutDesignerName,
+    Map<String, dynamic> modificationData,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إنهاء التعديلات النهائية',
+        userName: layoutDesignerName,
+        userPosition: AppConstants.POSITION_LAYOUT_DESIGNER,
+        performedById: layoutDesignerId,
+        timestamp: DateTime.now(),
+        comment: modificationData['comment'] ?? '',
+        attachedFileUrl: modificationData['attachedFileUrl'],
+        attachedFileName: modificationData['attachedFileName'],
+      );
+
+      // Automatic transition to managing editor final check
+      final transitionActionLog = ActionLogModel(
+        action: 'انتقال تلقائي للتحقق النهائي',
+        userName: 'النظام',
+        userPosition: 'تلقائي',
+        performedById: 'system',
+        timestamp: DateTime.now(),
+        comment: 'تم انتهاء التعديلات النهائية، انتقال للتحقق النهائي',
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+        'finalModificationsCompletedDate': FieldValue.serverTimestamp(),
+        'finalModificationsCompletedBy': layoutDesignerName,
+        'finalModificationsCompletedById': layoutDesignerId,
+        'finalModificationsData': {
+          'comment': modificationData['comment'],
+          'attachedFileUrl': modificationData['attachedFileUrl'],
+          'attachedFileName': modificationData['attachedFileName'],
+          'completedDate': Timestamp.now(),
+        },
+        'currentStage': 'managing_editor_final_check',
+        'actionLog': FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': 'النظام - انتقال تلقائي',
+      });
+
+      debugPrint('Final modifications submitted successfully');
+    } catch (e) {
+      debugPrint('Error submitting final modifications: $e');
+      rethrow;
+    }
+  }
+
+  /// Managing editor final check
+  Future<void> submitManagingEditorFinalCheck(
+    String documentId,
+    String managingEditorId,
+    String managingEditorName,
+    String decision, // 'approve' or 'request_more_modifications'
+    String comment,
+  ) async {
+    try {
+      String nextStatus;
+      String actionDescription;
+
+      if (decision == 'approve') {
+        nextStatus = AppConstants.HEAD_EDITOR_FINAL_APPROVAL;
+        actionDescription =
+            'تأكيد الإنجاز - إرسال لرئيس التحرير للاعتماد النهائي';
+      } else {
+        nextStatus = AppConstants.FINAL_MODIFICATIONS;
+        actionDescription = 'إعادة للمخرج الفني لتعديلات إضافية';
+      }
+
+      final actionLog = ActionLogModel(
+        action: actionDescription,
+        userName: managingEditorName,
+        userPosition: AppConstants.POSITION_MANAGING_EDITOR,
+        performedById: managingEditorId,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      final updateData = <String, dynamic>{
+        'status': nextStatus,
+        'managingEditorFinalCheckDate': FieldValue.serverTimestamp(),
+        'managingEditorFinalCheckBy': managingEditorName,
+        'managingEditorFinalCheckById': managingEditorId,
+        'managingEditorFinalCheckComment': comment,
+        'managingEditorFinalCheckDecision': decision,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': managingEditorName,
+      };
+
+      if (decision == 'approve') {
+        updateData['currentStage'] = 'head_editor_final_approval';
+        updateData['readyForFinalApproval'] = true;
+      } else {
+        updateData['currentStage'] = 'final_modifications_revision';
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Managing editor final check submitted: $decision');
+    } catch (e) {
+      debugPrint('Error submitting managing editor final check: $e');
+      rethrow;
+    }
+  }
+
+  /// Head editor final approval
+  Future<void> submitHeadEditorFinalApproval(
+    String documentId,
+    String headEditorId,
+    String headEditorName,
+    String
+        decision, // 'approve_for_publication' or 'request_final_modifications'
+    String comment,
+  ) async {
+    try {
+      String nextStatus;
+      String actionDescription;
+
+      if (decision == 'approve_for_publication') {
+        nextStatus = AppConstants.PUBLISHED;
+        actionDescription = 'اعتماد للطباعة والنشر النهائي';
+      } else {
+        nextStatus = AppConstants.FINAL_MODIFICATIONS;
+        actionDescription = 'ملاحظات إضافية للمخرج الفني';
+      }
+
+      final actionLog = ActionLogModel(
+        action: actionDescription,
+        userName: headEditorName,
+        userPosition: AppConstants.POSITION_HEAD_EDITOR,
+        performedById: headEditorId,
+        timestamp: DateTime.now(),
+        comment: comment,
+      );
+
+      final updateData = <String, dynamic>{
+        'status': nextStatus,
+        'headEditorFinalApprovalDate': FieldValue.serverTimestamp(),
+        'headEditorFinalApprovalBy': headEditorName,
+        'headEditorFinalApprovalById': headEditorId,
+        'headEditorFinalApprovalComment': comment,
+        'headEditorFinalApprovalDecision': decision,
+        'actionLog': FieldValue.arrayUnion([actionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': headEditorName,
+      };
+
+      if (decision == 'approve_for_publication') {
+        updateData['currentStage'] = 'published';
+        updateData['publicationDate'] = FieldValue.serverTimestamp();
+        updateData['isPublished'] = true;
+        updateData['stage3Status'] = 'completed_published';
+      } else {
+        updateData['currentStage'] = 'final_modifications_revision';
+        updateData['additionalModificationsRequested'] = true;
+      }
+
+      await _firestore
+          .collection('sent_documents')
+          .doc(documentId)
+          .update(updateData);
+
+      debugPrint('Head editor final approval submitted: $decision');
+    } catch (e) {
+      debugPrint('Error submitting head editor final approval: $e');
+      rethrow;
+    }
+  }
+
+  /// Handle layout revision (when revision is requested)
+  Future<void> submitLayoutRevision(
+    String documentId,
+    String layoutDesignerId,
+    String layoutDesignerName,
+    Map<String, dynamic> revisionData,
+  ) async {
+    try {
+      final actionLog = ActionLogModel(
+        action: 'إرسال الإخراج المُعدل',
+        userName: layoutDesignerName,
+        userPosition: AppConstants.POSITION_LAYOUT_DESIGNER,
+        performedById: layoutDesignerId,
+        timestamp: DateTime.now(),
+        comment: revisionData['comment'] ?? '',
+        attachedFileUrl: revisionData['attachedFileUrl'],
+        attachedFileName: revisionData['attachedFileName'],
+      );
+
+      // Return to managing editor review
+      final transitionActionLog = ActionLogModel(
+        action: 'انتقال تلقائي لمراجعة مدير التحرير',
+        userName: 'النظام',
+        userPosition: 'تلقائي',
+        performedById: 'system',
+        timestamp: DateTime.now(),
+        comment: 'تم إرسال الإخراج المُعدل لمراجعة مدير التحرير',
+      );
+
+      await _firestore.collection('sent_documents').doc(documentId).update({
+        'status': AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+        'layoutRevisionCompletedDate': FieldValue.serverTimestamp(),
+        'layoutRevisionCompletedBy': layoutDesignerName,
+        'layoutRevisionCompletedById': layoutDesignerId,
+        'layoutRevisionData': {
+          'comment': revisionData['comment'],
+          'attachedFileUrl': revisionData['attachedFileUrl'],
+          'attachedFileName': revisionData['attachedFileName'],
+          'revisionDate': Timestamp.now(),
+        },
+        'currentStage': 'managing_editor_review_layout',
+        'actionLog': FieldValue.arrayUnion(
+            [actionLog.toMap(), transitionActionLog.toMap()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastUpdatedBy': 'النظام - انتقال تلقائي',
+      });
+
+      debugPrint('Layout revision submitted successfully');
+    } catch (e) {
+      debugPrint('Error submitting layout revision: $e');
+      rethrow;
+    }
+  }
+
+  // Get documents for Stage 3 users
+
+  /// Get documents for Layout Designer
+  Future<List<DocumentModel>> getDocumentsForLayoutDesigner() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', whereIn: [
+            AppConstants.LAYOUT_DESIGN_STAGE3,
+            AppConstants.LAYOUT_REVISION_REQUESTED,
+            AppConstants.FINAL_MODIFICATIONS,
+          ])
+          .orderBy('layoutDesignStartDate', descending: false)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => DocumentModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching layout designer documents: $e');
+      return [];
+    }
+  }
+
+  /// Get documents for Final Reviewer
+  Future<List<DocumentModel>> getDocumentsForFinalReviewer() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', isEqualTo: AppConstants.FINAL_REVIEW_STAGE)
+          .orderBy('finalReviewStartDate', descending: false)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => DocumentModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching final reviewer documents: $e');
+      return [];
+    }
+  }
+
+  /// Get documents for Managing Editor in Stage 3
+  Future<List<DocumentModel>> getDocumentsForManagingEditorStage3() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', whereIn: [
+            AppConstants.LAYOUT_DESIGN_COMPLETED,
+            AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+            AppConstants.MANAGING_EDITOR_FINAL_CHECK,
+          ])
+          .orderBy('lastUpdated', descending: false)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => DocumentModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching managing editor stage3 documents: $e');
+      return [];
+    }
+  }
+
+  /// Get documents for Head Editor in Stage 3
+  Future<List<DocumentModel>> getDocumentsForHeadEditorStage3() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', whereIn: [
+            AppConstants.STAGE2_APPROVED,
+            AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+            AppConstants.HEAD_EDITOR_FINAL_APPROVAL,
+          ])
+          .orderBy('lastUpdated', descending: false)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => DocumentModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching head editor stage3 documents: $e');
+      return [];
+    }
+  }
+
+  // Stream for Stage 3 documents
+  Stream<List<DocumentModel>> getStage3DocumentsStream() {
+    try {
+      return _firestore
+          .collection('sent_documents')
+          .where('status', whereIn: AppConstants.stage3Statuses)
+          .orderBy('timestamp', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        return snapshot.docs
+            .map((doc) => DocumentModel.fromFirestore(doc))
+            .toList();
+      });
+    } catch (e) {
+      debugPrint('Error creating Stage 3 documents stream: $e');
+      return Stream.value([]);
+    }
+  }
+
+  /// Get all Stage 3 documents
+  Future<List<DocumentModel>> getAllStage3Documents() async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('sent_documents')
+          .where('status', whereIn: AppConstants.stage3Statuses)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => DocumentModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching Stage 3 documents: $e');
+      throw e;
+    }
+  }
+
+  /// Get Stage 3 statistics
+  Future<Map<String, dynamic>> getStage3Statistics() async {
+    try {
+      final statistics = <String, dynamic>{};
+
+      for (String status in AppConstants.stage3Statuses) {
+        final count = await _getDocumentCountByStatus(status);
+        statistics[status] = count;
+      }
+
+      final totalDocuments =
+          statistics.values.fold<int>(0, (sum, count) => count + sum);
+      final readyForLayout = statistics[AppConstants.STAGE2_APPROVED] ?? 0;
+      final inLayout = statistics[AppConstants.LAYOUT_DESIGN_STAGE3] ?? 0;
+      final inReview = statistics[AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT]! +
+          statistics[AppConstants.HEAD_EDITOR_FIRST_REVIEW]! +
+          statistics[AppConstants.FINAL_REVIEW_STAGE]!;
+      final inFinalStages = statistics[AppConstants.FINAL_MODIFICATIONS]! +
+          statistics[AppConstants.MANAGING_EDITOR_FINAL_CHECK]! +
+          statistics[AppConstants.HEAD_EDITOR_FINAL_APPROVAL]!;
+      final published = statistics[AppConstants.PUBLISHED] ?? 0;
+
+      final completed = published;
+      final inProgress = totalDocuments - completed;
+
+      statistics['stage3_metrics'] = {
+        'total': totalDocuments,
+        'ready_for_layout': readyForLayout,
+        'in_layout': inLayout,
+        'in_review': inReview,
+        'in_final_stages': inFinalStages,
+        'published': published,
+        'completed': completed,
+        'in_progress': inProgress,
+        'completion_rate':
+            totalDocuments > 0 ? (completed / totalDocuments * 100).round() : 0,
+        'publication_rate':
+            totalDocuments > 0 ? (published / totalDocuments * 100).round() : 0,
+      };
+
+      return statistics;
+    } catch (e) {
+      debugPrint('Error getting Stage 3 statistics: $e');
+      return {};
+    }
+  }
+
+  /// Check if user can proceed with action in Stage 3
+  bool canProceedWithStage3Action(
+      DocumentModel document, String action, String userPosition) {
+    switch (document.status) {
+      case AppConstants.STAGE2_APPROVED:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR ||
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.LAYOUT_DESIGN_STAGE3:
+      case AppConstants.LAYOUT_REVISION_REQUESTED:
+      case AppConstants.FINAL_MODIFICATIONS:
+        return userPosition == AppConstants.POSITION_LAYOUT_DESIGNER;
+
+      case AppConstants.LAYOUT_DESIGN_COMPLETED:
+      case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
+      case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
+      case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+
+      case AppConstants.FINAL_REVIEW_STAGE:
+        return userPosition == AppConstants.POSITION_FINAL_REVIEWER;
+
+      default:
+        return false;
+    }
+  }
+
   // ==================== COMMON METHODS ====================
 
   Future<void> updateDocumentStatus(
@@ -1872,6 +2634,12 @@ class DocumentService {
     return data;
   }
 
+  // Updated getDocumentsForUser method in Document_Services.dart
+
+  // Update the getDocumentsForUser method in Document_Services.dart
+// Add these updates to your existing Document_Services.dart
+
+// Update the getDocumentsForUser method to include Stage 3 users
   Future<List<DocumentModel>> getDocumentsForUser(
       String userId, String userPosition) async {
     try {
@@ -1882,13 +2650,37 @@ class DocumentService {
         documents
             .addAll(await getDocumentsByStatus(AppConstants.SECRETARY_REVIEW));
       } else if (userPosition == AppConstants.POSITION_LANGUAGE_EDITOR) {
+        // Language editor sees documents assigned for language editing
         documents.addAll(
             await getDocumentsByStatus(AppConstants.LANGUAGE_EDITING_STAGE2));
+        // Also show completed language editing documents for reference
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITOR_COMPLETED));
+      } else if (userPosition == AppConstants.POSITION_LAYOUT_DESIGNER) {
+        // NEW: Layout designer sees Stage 3 documents for layout work
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LAYOUT_DESIGN_STAGE3));
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LAYOUT_REVISION_REQUESTED));
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.FINAL_MODIFICATIONS));
+        // Also show completed work for reference
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LAYOUT_DESIGN_COMPLETED));
+      } else if (userPosition == AppConstants.POSITION_FINAL_REVIEWER) {
+        // NEW: Final reviewer sees documents in final review stage
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.FINAL_REVIEW_STAGE));
+        // Also show completed reviews for reference
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.FINAL_REVIEW_COMPLETED));
       } else if (userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
           userPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+        // Chef Editor sees language editing reviews, editor review tasks, AND Stage 3 tasks
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITOR_COMPLETED));
         documents.addAll(
             await getDocumentsByStatus(AppConstants.CHEF_REVIEW_LANGUAGE_EDIT));
-
         documents
             .addAll(await getDocumentsByStatus(AppConstants.EDITOR_REVIEW));
         documents.addAll(
@@ -1897,7 +2689,18 @@ class DocumentService {
             await getDocumentsByStatus(AppConstants.SECRETARY_REJECTED));
         documents.addAll(
             await getDocumentsByStatus(AppConstants.SECRETARY_EDIT_REQUESTED));
+        // Stage 3 tasks
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LAYOUT_DESIGN_COMPLETED));
+        documents.addAll(await getDocumentsByStatus(
+            AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT));
+        documents.addAll(await getDocumentsByStatus(
+            AppConstants.MANAGING_EDITOR_FINAL_CHECK));
+        // Also show language editing in progress for monitoring
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITING_STAGE2));
       } else if (userPosition == AppConstants.POSITION_HEAD_EDITOR) {
+        // Head Editor sees all stages including Stage 3
         documents.addAll(
             await getDocumentsByStatus(AppConstants.LANGUAGE_EDITOR_COMPLETED));
         documents.addAll(
@@ -1919,6 +2722,16 @@ class DocumentService {
             await getDocumentsByStatus(AppConstants.PEER_REVIEW_COMPLETED));
         documents.addAll(
             await getDocumentsByStatus(AppConstants.HEAD_REVIEW_STAGE2));
+        // Stage 3 tasks for head editor
+        documents
+            .addAll(await getDocumentsByStatus(AppConstants.STAGE2_APPROVED));
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.HEAD_EDITOR_FIRST_REVIEW));
+        documents.addAll(await getDocumentsByStatus(
+            AppConstants.HEAD_EDITOR_FINAL_APPROVAL));
+        // Include language editing stages for monitoring
+        documents.addAll(
+            await getDocumentsByStatus(AppConstants.LANGUAGE_EDITING_STAGE2));
       } else if (userPosition.contains('محكم') ||
           userPosition == AppConstants.POSITION_REVIEWER) {
         final snapshot = await _firestore
@@ -1957,6 +2770,7 @@ class DocumentService {
     }
   }
 
+// Update the _getDocumentPriority method to include Stage 3 priorities
   int _getDocumentPriority(String status, String userPosition) {
     const stage1PriorityMap = {
       AppConstants.INCOMING: 1,
@@ -1981,16 +2795,164 @@ class DocumentService {
       AppConstants.UNDER_PEER_REVIEW: 3,
       AppConstants.PEER_REVIEW_COMPLETED: 4,
       AppConstants.HEAD_REVIEW_STAGE2: 5,
-      AppConstants.LANGUAGE_EDITING_STAGE2: 6, // NEW
-      AppConstants.LANGUAGE_EDITOR_COMPLETED: 7, // NEW
-      AppConstants.CHEF_REVIEW_LANGUAGE_EDIT: 8, // NEW
+      AppConstants.LANGUAGE_EDITING_STAGE2: 6,
+      AppConstants.LANGUAGE_EDITOR_COMPLETED: 7,
+      AppConstants.CHEF_REVIEW_LANGUAGE_EDIT: 8,
       AppConstants.STAGE2_APPROVED: 20,
       AppConstants.STAGE2_REJECTED: 21,
       AppConstants.STAGE2_EDIT_REQUESTED: 22,
       AppConstants.STAGE2_WEBSITE_APPROVED: 23,
     };
 
-    return stage1PriorityMap[status] ?? stage2PriorityMap[status] ?? 999;
+    // NEW: Stage 3 priority map
+    const stage3PriorityMap = {
+      AppConstants.STAGE2_APPROVED: 1,
+      AppConstants.LAYOUT_DESIGN_STAGE3: 2,
+      AppConstants.LAYOUT_DESIGN_COMPLETED: 3,
+      AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT: 4,
+      AppConstants.HEAD_EDITOR_FIRST_REVIEW: 5,
+      AppConstants.LAYOUT_REVISION_REQUESTED: 6,
+      AppConstants.FINAL_REVIEW_STAGE: 7,
+      AppConstants.FINAL_REVIEW_COMPLETED: 8,
+      AppConstants.FINAL_MODIFICATIONS: 9,
+      AppConstants.MANAGING_EDITOR_FINAL_CHECK: 10,
+      AppConstants.HEAD_EDITOR_FINAL_APPROVAL: 11,
+      AppConstants.PUBLISHED: 20,
+    };
+
+    // Priority based on user position
+    if (userPosition == AppConstants.POSITION_LANGUAGE_EDITOR) {
+      if (status == AppConstants.LANGUAGE_EDITING_STAGE2)
+        return 1; // Highest priority for language editors
+      if (status == AppConstants.LANGUAGE_EDITOR_COMPLETED)
+        return 2; // Second priority (completed work)
+    }
+
+    // NEW: Layout designer priorities
+    if (userPosition == AppConstants.POSITION_LAYOUT_DESIGNER) {
+      if (status == AppConstants.LAYOUT_DESIGN_STAGE3)
+        return 1; // Highest priority
+      if (status == AppConstants.FINAL_MODIFICATIONS)
+        return 2; // Second priority
+      if (status == AppConstants.LAYOUT_REVISION_REQUESTED)
+        return 3; // Third priority
+    }
+
+    // NEW: Final reviewer priorities
+    if (userPosition == AppConstants.POSITION_FINAL_REVIEWER) {
+      if (status == AppConstants.FINAL_REVIEW_STAGE)
+        return 1; // Highest priority
+    }
+
+    if (userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+        userPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+      if (status == AppConstants.LANGUAGE_EDITOR_COMPLETED)
+        return 1; // Highest priority (needs chef review)
+      if (status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)
+        return 2; // Second priority (in chef review)
+      // NEW: Stage 3 priorities for managing editor
+      if (status == AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT)
+        return 3; // Third priority
+      if (status == AppConstants.MANAGING_EDITOR_FINAL_CHECK)
+        return 4; // Fourth priority
+      if (status == AppConstants.LANGUAGE_EDITING_STAGE2)
+        return 5; // Fifth priority (monitoring)
+    }
+
+    // NEW: Head editor Stage 3 priorities
+    if (userPosition == AppConstants.POSITION_HEAD_EDITOR) {
+      if (status == AppConstants.STAGE2_APPROVED)
+        return 1; // Highest priority (ready for Stage 3)
+      if (status == AppConstants.HEAD_EDITOR_FINAL_APPROVAL)
+        return 2; // Second priority (final approval)
+      if (status == AppConstants.HEAD_EDITOR_FIRST_REVIEW)
+        return 3; // Third priority (first review)
+    }
+
+    return stage1PriorityMap[status] ??
+        stage2PriorityMap[status] ??
+        stage3PriorityMap[status] ??
+        999;
+  }
+
+// Update canProceedWithAction to include Stage 3 actions
+  bool canProceedWithAction(
+      DocumentModel document, String action, String userPosition) {
+    switch (document.status) {
+      case AppConstants.INCOMING:
+        return userPosition == AppConstants.POSITION_SECRETARY;
+      case AppConstants.SECRETARY_REVIEW:
+        return userPosition == AppConstants.POSITION_SECRETARY;
+      case AppConstants.SECRETARY_APPROVED:
+      case AppConstants.SECRETARY_REJECTED:
+      case AppConstants.SECRETARY_EDIT_REQUESTED:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
+      case AppConstants.EDITOR_REVIEW:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
+      case AppConstants.EDITOR_APPROVED:
+      case AppConstants.EDITOR_REJECTED:
+      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
+      case AppConstants.EDITOR_EDIT_REQUESTED:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+      case AppConstants.HEAD_REVIEW:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+      case AppConstants.STAGE1_APPROVED:
+      case AppConstants.REVIEWERS_ASSIGNED:
+      case AppConstants.PEER_REVIEW_COMPLETED:
+      case AppConstants.HEAD_REVIEW_STAGE2:
+        if (action == AppConstants.ACTION_SEND_TO_LANGUAGE_EDITOR) {
+          return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+        }
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+      case AppConstants.LANGUAGE_EDITING_STAGE2:
+        if (action == AppConstants.ACTION_COMPLETE_LANGUAGE_EDITING) {
+          return userPosition == AppConstants.POSITION_LANGUAGE_EDITOR;
+        }
+        return userPosition == AppConstants.POSITION_LANGUAGE_EDITOR ||
+            userPosition == AppConstants.POSITION_HEAD_EDITOR ||
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF ||
+            userPosition == AppConstants.POSITION_HEAD_EDITOR;
+
+      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF ||
+            userPosition == AppConstants.POSITION_HEAD_EDITOR;
+
+      // NEW: Stage 3 action permissions
+      case AppConstants.STAGE2_APPROVED:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR ||
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.LAYOUT_DESIGN_STAGE3:
+      case AppConstants.LAYOUT_REVISION_REQUESTED:
+      case AppConstants.FINAL_MODIFICATIONS:
+        return userPosition == AppConstants.POSITION_LAYOUT_DESIGNER;
+
+      case AppConstants.LAYOUT_DESIGN_COMPLETED:
+      case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
+      case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+
+      case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
+      case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
+        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
+
+      case AppConstants.FINAL_REVIEW_STAGE:
+        return userPosition == AppConstants.POSITION_FINAL_REVIEWER;
+
+      case AppConstants.UNDER_PEER_REVIEW:
+        return userPosition.contains('محكم') ||
+            userPosition == AppConstants.POSITION_REVIEWER;
+      default:
+        return false;
+    }
   }
 
   Future<int> _getDocumentCountByStatus(String status) async {
@@ -2192,52 +3154,6 @@ class DocumentService {
           ? steps[currentStepIndex]
           : null,
     };
-  }
-
-  bool canProceedWithAction(
-      DocumentModel document, String action, String userPosition) {
-    switch (document.status) {
-      case AppConstants.INCOMING:
-        return userPosition == AppConstants.POSITION_SECRETARY;
-      case AppConstants.SECRETARY_REVIEW:
-        return userPosition == AppConstants.POSITION_SECRETARY;
-      case AppConstants.SECRETARY_APPROVED:
-      case AppConstants.SECRETARY_REJECTED:
-      case AppConstants.SECRETARY_EDIT_REQUESTED:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
-      case AppConstants.EDITOR_REVIEW:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
-      case AppConstants.EDITOR_APPROVED:
-      case AppConstants.EDITOR_REJECTED:
-      case AppConstants.EDITOR_WEBSITE_RECOMMENDED:
-      case AppConstants.EDITOR_EDIT_REQUESTED:
-        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-      case AppConstants.HEAD_REVIEW:
-        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-      case AppConstants.STAGE1_APPROVED:
-      case AppConstants.REVIEWERS_ASSIGNED:
-      case AppConstants.PEER_REVIEW_COMPLETED:
-      case AppConstants.HEAD_REVIEW_STAGE2:
-        if (action == AppConstants.ACTION_SEND_TO_LANGUAGE_EDITOR) {
-          return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-        }
-        return userPosition == AppConstants.POSITION_HEAD_EDITOR;
-      case AppConstants.LANGUAGE_EDITING_STAGE2:
-        return userPosition == AppConstants.POSITION_LANGUAGE_EDITOR;
-
-      case AppConstants.LANGUAGE_EDITOR_COMPLETED:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
-
-      case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
-      case AppConstants.UNDER_PEER_REVIEW:
-        return userPosition.contains('محكم') ||
-            userPosition == AppConstants.POSITION_REVIEWER;
-      default:
-        return false;
-    }
   }
 
   String getWorkflowStageName(String status) {

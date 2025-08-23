@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
-import 'DocumentDetails/Constants/App_Constants.dart';
+import '../../App_Constants.dart';
 import 'DocumentDetails/DocumentDetails.dart';
 
 class DocumentsSpreadsheetView extends StatefulWidget {
