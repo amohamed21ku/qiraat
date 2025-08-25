@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,8 +23,10 @@ import 'package:printing/printing.dart';
 
 import '../../Classes/current_user_providerr.dart';
 import '../App_Constants.dart';
+import '../Classes/ArabicTextStyle.dart';
 import '../Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/Action_history.dart';
+import '../Widgets/documentInfoSection.dart';
 import '../models/document_model.dart';
 
 class Stage1SecretaryDetailsPage extends StatefulWidget {
@@ -147,15 +148,13 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
+// Update your header section:
   Widget _buildHeader(bool isDesktop) {
     return Container(
       padding: EdgeInsets.fromLTRB(20, 60, 20, 30),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.orange.shade500,
-            Colors.orange.shade700,
-          ],
+          colors: [Colors.orange.shade500, Colors.orange.shade700],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
@@ -202,7 +201,8 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
                     Text(
                       'المرحلة الأولى - الفحص الأولي والموافقة',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
                         color: Colors.white.withOpacity(0.9),
                       ),
                     ),
@@ -218,6 +218,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
+// Update your status bar:
   Widget _buildSecretaryStatusBar() {
     final status = _document!.status;
     String statusText = '';
@@ -259,16 +260,12 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
                 Text(
                   'حالة المراجعة',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange.shade600,
-                    fontWeight: FontWeight.w600,
+                    color: Colors.orange.shade700,
                   ),
                 ),
                 Text(
                   statusText,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
                     color: Colors.orange.shade800,
                   ),
                 ),
@@ -278,8 +275,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
           Text(
             _formatDate(_document!.timestamp),
             style: TextStyle(
-              fontSize: 12,
-              color: Colors.orange.shade600,
+              color: Colors.blue.shade600,
             ),
           ),
         ],
@@ -296,7 +292,13 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
       child: Column(
         children: [
           // Document Info Card with File Viewing
-          _buildDocumentInfoCard(),
+          documentInfo(
+            fileName: _getFileName(),
+            FileTypeDisplayName: _getFileTypeDisplayName(),
+            handleViewFile: _handleViewFile,
+            handleDownloadFile: _handleDownloadFile,
+            document: _document,
+          ),
 
           // Enhanced Sender Info Card with all required information
           _buildCompleteSenderInfoCard(),
@@ -309,189 +311,6 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
             ActionHistoryWidget(actionLog: _document!.actionLog),
 
           SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDocumentInfoCard() {
-    return Container(
-      margin: EdgeInsets.only(bottom: 20),
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade100, Colors.blue.shade200],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.description,
-                    color: Colors.blue.shade700, size: 24),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'تفاصيل المستند',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'معلومات الملف المرفق',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 20),
-
-          // File Information
-          if (_document!.documentUrl != null &&
-              _document!.documentUrl!.isNotEmpty)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.grey.shade50, Colors.grey.shade100],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.attach_file,
-                          color: Colors.grey.shade600, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'الملف المرفق',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _getFileName(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xff2d3748),
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'نوع الملف: ${_getFileTypeDisplayName()}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: _handleViewFile,
-                            icon: Icon(Icons.visibility, size: 18),
-                            label: Text('عرض'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: _handleDownloadFile,
-                            icon: Icon(Icons.download, size: 18),
-                            label: Text('تحميل'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange.shade600, size: 20),
-                  SizedBox(width: 12),
-                  Text(
-                    'لا يوجد ملف مرفق',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.orange.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -609,6 +428,7 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
+// Update your info row builder:
   Widget _buildInfoRow(String label, String value, IconData icon) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -635,20 +455,13 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: ArabicTextStyles.caption(color: Colors.grey.shade600),
                 ),
                 SizedBox(height: 4),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade800,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style:
+                      ArabicTextStyles.bodyMedium(color: Colors.grey.shade800),
                 ),
               ],
             ),
@@ -843,6 +656,14 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
         _currentUserPosition == AppConstants.POSITION_SECRETARY &&
             [AppConstants.INCOMING, AppConstants.SECRETARY_REVIEW]
                 .contains(_document!.status);
+    print(canTakeAction);
+    print(_currentUserPosition == AppConstants.POSITION_SECRETARY);
+    print([AppConstants.INCOMING, AppConstants.SECRETARY_REVIEW]
+        .contains(_document!.status));
+    print("Hi Nazzy");
+    print(_currentUserPosition);
+    print(AppConstants.POSITION_SECRETARY);
+    print("Hi Nazzy");
 
     return Container(
       margin: EdgeInsets.symmetric(vertical: 20),
@@ -1455,23 +1276,39 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
     );
   }
 
+// Updated _processEvaluation method to handle PDF generation and upload
   Future<void> _processEvaluation(Map<String, dynamic> evaluationResult) async {
     setState(() => _isLoading = true);
 
     try {
-      // Generate evaluation report
-      String reportContent = _generateEvaluationReport(evaluationResult);
+      // Generate the PDF report (same as dialog, but return the bytes)
+      final pdfBytes = await _generatePdfReport(evaluationResult);
 
-      // Upload report to Firebase Storage
-      String? reportUrl = await _uploadEvaluationReport(reportContent);
+      // Upload PDF report to Firebase Storage
+      String? reportUrl = await _uploadPdfReport(pdfBytes, evaluationResult);
 
       // Always send to manager with the evaluation report
       String nextStatus = AppConstants.SECRETARY_APPROVED;
 
+      // Create a summary comment for the document update
+      String summaryComment = '''
+تقييم السكرتير: تم إكمال التقييم الشامل للمقال
+
+الزاوية/الموضوع: ${evaluationResult['topic'] ?? 'غير محدد'}
+
+تقييم عام: ${evaluationResult['generalEvaluation'] ?? 'غير محدد'}
+
+التعديلات المطلوبة: ${evaluationResult['modificationsNeeded'] ?? 'لا توجد'}
+
+التعليق العام: ${evaluationResult['comment'] ?? 'لا يوجد تعليق'}
+
+تم إرفاق تقرير التقييم الشامل مع جميع التفاصيل.
+''';
+
       await _documentService.updateDocumentStatus(
         _document!.id,
         nextStatus,
-        evaluationResult['comment'],
+        summaryComment,
         _currentUserId!,
         _currentUserName!,
         _currentUserPosition!,
@@ -1487,6 +1324,386 @@ class _Stage1SecretaryDetailsPageState extends State<Stage1SecretaryDetailsPage>
       _showErrorSnackBar('خطأ في معالجة التقييم: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+// Generate PDF report and return bytes
+  Future<Uint8List> _generatePdfReport(Map<String, dynamic> evaluation) async {
+    final doc = pw.Document();
+
+    // Declare text styles outside try-catch so they're accessible everywhere
+    late pw.TextStyle h1;
+    late pw.TextStyle h2;
+    late pw.TextStyle body;
+    late pw.TextStyle bodyBold;
+
+    try {
+      // Try to load your bundled Arabic fonts for PDF
+      final arabicFontData =
+          await rootBundle.load('fonts/NotoSansArabic-Regular.ttf');
+      final arabicFont = pw.Font.ttf(arabicFontData);
+
+      final arabicBoldFontData =
+          await rootBundle.load('fonts/NotoSansArabic-Bold.ttf');
+      final arabicBoldFont = pw.Font.ttf(arabicBoldFontData);
+
+      // Define text styles with Arabic fonts
+      h1 = pw.TextStyle(
+          fontSize: 22, fontWeight: pw.FontWeight.bold, font: arabicBoldFont);
+      h2 = pw.TextStyle(
+          fontSize: 16, fontWeight: pw.FontWeight.bold, font: arabicBoldFont);
+      body = pw.TextStyle(fontSize: 11, font: arabicFont);
+      bodyBold = pw.TextStyle(fontSize: 11, font: arabicBoldFont);
+    } catch (e) {
+      // Fallback: Use default fonts if Arabic fonts fail to load
+      print('Failed to load Arabic fonts for PDF: $e');
+
+      h1 = pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold);
+      h2 = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
+      body = pw.TextStyle(fontSize: 11);
+      bodyBold = pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold);
+    }
+
+    // Helper function to create question-answer boxes
+    pw.Widget qaBox(String question, String? answer, String notes) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(6),
+        ),
+        margin: const pw.EdgeInsets.only(bottom: 6),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('س: $question', style: bodyBold),
+            if (answer != null) pw.SizedBox(height: 2),
+            if (answer != null) pw.Text('الإجابة: $answer', style: body),
+            if (notes.trim().isNotEmpty) pw.SizedBox(height: 2),
+            if (notes.trim().isNotEmpty)
+              pw.Text('ملاحظات: $notes', style: body),
+          ],
+        ),
+      );
+    }
+
+    // Helper function to create metadata table
+    pw.Widget metaTable(List<List<String>> rows) {
+      return pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey300),
+        columnWidths: const {
+          0: pw.FlexColumnWidth(1.2),
+          1: pw.FlexColumnWidth(2.2),
+        },
+        children: [
+          for (final row in rows)
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(row[0], style: bodyBold),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(row[1], style: body),
+                ),
+              ],
+            ),
+        ],
+      );
+    }
+
+    // Helper function to create text boxes
+    pw.Widget textBox(String title, String content) {
+      final displayContent = content.trim().isEmpty ? '—' : content.trim();
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(title, style: h2),
+          pw.SizedBox(height: 6),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+              borderRadius: pw.BorderRadius.circular(6),
+            ),
+            child: pw.Text(displayContent, style: body),
+          ),
+        ],
+      );
+    }
+
+    // Define all sections
+    final sections = <Map<String, dynamic>>[
+      {
+        'title': 'الأصالة والجدة',
+        'items': [
+          {
+            'q': 'هل تم نشر المقال سابقاً في أي وسيلة نشر؟',
+            'a': evaluation['originalityPublished'],
+            'n': evaluation['originalityPublishedComment'] ?? ''
+          },
+          {
+            'q': 'هل توجد في المجلة موضوعات مماثلة له؟',
+            'a': evaluation['originalitySimilar'],
+            'n': evaluation['originalitySimilarComment'] ?? ''
+          },
+          {
+            'q': 'هل للمقال قيمة مضافة واضحة؟',
+            'a': evaluation['originalityValue'],
+            'n': evaluation['originalityValueComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'سياسات المجلة',
+        'items': [
+          {
+            'q': 'هل يتوافق المقال مع سياسات المجلة وهدفها العام؟',
+            'a': evaluation['policyAlignment'],
+            'n': evaluation['policyAlignmentComment'] ?? ''
+          },
+          {
+            'q':
+                'هل يتعلق المقال بمجال اهتمام المجلة (مثلاً: إفريقيا جنوب الصحراء)؟',
+            'a': evaluation['policyRelevance'],
+            'n': evaluation['policyRelevanceComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'المنهجية العلمية',
+        'items': [
+          {
+            'q': 'هل المعلومات والإحصاءات جديدة وحديثة؟',
+            'a': evaluation['methodologyData'],
+            'n': evaluation['methodologyDataComment'] ?? ''
+          },
+          {
+            'q': 'هل المصادر أصلية وموثوقة؟',
+            'a': evaluation['methodologySources'],
+            'n': evaluation['methodologySourcesComment'] ?? ''
+          },
+          {
+            'q': 'هل التزم الباحث بأصول المنهجية العلمية؟',
+            'a': evaluation['methodologyScientific'],
+            'n': evaluation['methodologyScientificComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'الكتابة والمعالجة',
+        'items': [
+          {
+            'q': 'هل معالجة الموضوع متكاملة وعناصره الرئيسة متسقة؟',
+            'a': evaluation['writingTreatment'],
+            'n': evaluation['writingTreatmentComment'] ?? ''
+          },
+          {
+            'q': 'هل لغة الكتابة سليمة والأسلوب مناسب لعموم القراء؟',
+            'a': evaluation['writingLanguage'],
+            'n': evaluation['writingLanguageComment'] ?? ''
+          },
+          {
+            'q': 'هل حجم المقال مناسب؟',
+            'a': evaluation['writingSize'],
+            'n': evaluation['writingSizeComment'] ?? ''
+          },
+        ],
+      },
+      {
+        'title': 'ملاحظات إضافية للمقال',
+        'items': [
+          {
+            'q': 'هل الملخص يحتوي على الكلمات المفتاحية الكافية؟',
+            'a': evaluation['abstractKeywords'],
+            'n': evaluation['abstractKeywordsComment'] ?? ''
+          },
+          {
+            'q': 'هل الاستنتاجات في الملخص قابلة للقياس والتحقق؟',
+            'a': evaluation['abstractConclusions'],
+            'n': evaluation['abstractConclusionsComment'] ?? ''
+          },
+          {
+            'q': 'هل المقدمة تحتوي على منهج وصياغة إشكالية واضحة؟',
+            'a': evaluation['introductionMethodology'],
+            'n': evaluation['introductionMethodologyComment'] ?? ''
+          },
+          {
+            'q': 'هل المقدمة تشتمل على إطار مفاهيمي محدد للمفاهيم الأساسية؟',
+            'a': evaluation['introductionFramework'],
+            'n': evaluation['introductionFrameworkComment'] ?? ''
+          },
+          {
+            'q': 'هل الخاتمة تعرض النتائج بوضوح وتبين حدود الدراسة؟',
+            'a': evaluation['conclusionResults'],
+            'n': evaluation['conclusionResultsComment'] ?? ''
+          },
+        ],
+      },
+    ];
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        build: (context) => [
+          pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                pw.Text('تقرير تقييم المقال – المرحلة الأولى', style: h1),
+                pw.SizedBox(height: 6),
+                pw.Divider(),
+                pw.SizedBox(height: 6),
+
+                // Metadata table
+                metaTable([
+                  [
+                    'الباحث ودرجته العلمية',
+                    '${_document!.fullName ?? '—'} - ${_document!.education ?? '—'}'
+                  ],
+                  ['تاريخ الاستلام', _formatDate(_document!.timestamp)],
+                  ['الزاوية/الموضوع', evaluation['topic'] ?? '—'],
+                  ['تاريخ إنشاء التقرير', _formatDate(DateTime.now())],
+                ]),
+                pw.SizedBox(height: 12),
+
+                // All sections
+                for (final section in sections) ...[
+                  pw.Text('• ${section['title']}', style: h2),
+                  pw.SizedBox(height: 6),
+                  ...(section['items'] as List).map<pw.Widget>(
+                    (item) => qaBox(item['q'], item['a'], item['n'] ?? ''),
+                  ),
+                  pw.SizedBox(height: 10),
+                ],
+
+                // Secretary opinion
+                textBox('رأي سكرتير التحرير',
+                    evaluation['generalEvaluation'] ?? ''),
+                pw.SizedBox(height: 8),
+                textBox('التعديلات المطلوبة',
+                    evaluation['modificationsNeeded'] ?? ''),
+                pw.SizedBox(height: 8),
+                textBox('التعليق العام', evaluation['comment'] ?? ''),
+
+                // Decision
+                pw.SizedBox(height: 12),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.green50,
+                    border: pw.Border.all(color: PdfColors.green200),
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('القرار النهائي', style: h2),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                          'تم إرسال المقال مع تقرير التقييم إلى مدير التحرير للمراجعة',
+                          style: body),
+                    ],
+                  ),
+                ),
+
+                // Footer
+                pw.SizedBox(height: 16),
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('تم إعداد هذا التقرير بواسطة: ${_currentUserName}',
+                        style: body),
+                    pw.Text('التاريخ: ${_formatDate(DateTime.now())}',
+                        style: body),
+                  ],
+                ),
+                pw.SizedBox(height: 8),
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Text(
+                    '— نهاية التقرير —',
+                    style: body.copyWith(color: PdfColors.grey600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+// Upload PDF report to Firebase Storage
+  Future<String?> _uploadPdfReport(
+      Uint8List pdfBytes, Map<String, dynamic> evaluation) async {
+    try {
+      final FirebaseStorage storage = FirebaseStorage.instance;
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName =
+          'secretary_evaluation_reports/PDF_تقرير_تقييم_السكرتير_$timestamp.pdf';
+
+      Reference ref = storage.ref().child(fileName);
+
+      if (kIsWeb) {
+        // Web upload
+        UploadTask uploadTask = ref.putData(
+          pdfBytes,
+          SettableMetadata(
+            contentType: 'application/pdf',
+            customMetadata: {
+              'documentId': _document!.id,
+              'evaluatorName': _currentUserName ?? 'غير محدد',
+              'evaluatorPosition': _currentUserPosition ?? 'غير محدد',
+              'evaluationDate': DateTime.now().toIso8601String(),
+              'topic': evaluation['topic'] ?? 'غير محدد',
+            },
+          ),
+        );
+
+        TaskSnapshot snapshot = await uploadTask;
+        return await snapshot.ref.getDownloadURL();
+      } else {
+        // Mobile upload - save to temp file first
+        final Directory tempDir = await getTemporaryDirectory();
+        final String filePath =
+            '${tempDir.path}/evaluation_report_$timestamp.pdf';
+        final File file = File(filePath);
+        await file.writeAsBytes(pdfBytes);
+
+        UploadTask uploadTask = ref.putFile(
+          file,
+          SettableMetadata(
+            contentType: 'application/pdf',
+            customMetadata: {
+              'documentId': _document!.id,
+              'evaluatorName': _currentUserName ?? 'غير محدد',
+              'evaluatorPosition': _currentUserPosition ?? 'غير محدد',
+              'evaluationDate': DateTime.now().toIso8601String(),
+              'topic': evaluation['topic'] ?? 'غير محدد',
+            },
+          ),
+        );
+
+        TaskSnapshot snapshot = await uploadTask;
+
+        // Clean up temp file
+        if (await file.exists()) {
+          await file.delete();
+        }
+
+        return await snapshot.ref.getDownloadURL();
+      }
+    } catch (e) {
+      print('Error uploading PDF evaluation report: $e');
+      return null;
     }
   }
 
@@ -2441,6 +2658,7 @@ class _ComprehensiveEvaluationDialogState
     );
   }
 
+// Update the dialog's _submitEvaluation method
   Future<void> _submitEvaluation() async {
     Map<String, dynamic> result = {
       'topic': _topicController.text.trim(),
@@ -2487,21 +2705,107 @@ class _ComprehensiveEvaluationDialogState
       'conclusionResultsComment':
           _conclusionResultsCommentController.text.trim(),
       'comment': _commentController.text.trim(),
-      'action': 'send_to_manager', // الملف سيرسل للمدير في جميع الأحوال
-      // Add basic doc info for the PDF header
-      'doc_fullName': widget.document.fullName,
-      'doc_education': widget.document.education,
-      'doc_receivedDate': _formatDate(widget.document.timestamp),
-      'generated_at': _formatDate(DateTime.now()),
+      'action': 'send_to_manager',
     };
 
-    // 1) Generate & preview/share the PDF
-    final pdfBytes = await _buildPdfReport(result);
-    await Printing.layoutPdf(onLayout: (_) async => pdfBytes);
+    try {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Container(
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Colors.orange.shade600),
+                SizedBox(height: 16),
+                Text('جاري إنشاء تقرير التقييم...',
+                    style: ArabicTextStyles.bodyMedium()),
+              ],
+            ),
+          ),
+        ),
+      );
 
-    // 2) Return the result to your flow (you can also include pdfBytes if needed)
-    Navigator.pop(context);
-    widget.onComplete(result);
+      // 1) Generate PDF for preview (optional - user can see it before sending)
+      final pdfBytes = await _buildPdfReport(result);
+
+      // Hide loading
+      Navigator.pop(context);
+
+      // 2) Show PDF preview to user
+      bool? confirmSend = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('معاينة التقرير', style: ArabicTextStyles.dialogTitle()),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('تم إنشاء تقرير التقييم بنجاح. هل تريد معاينته قبل الإرسال؟',
+                  style: ArabicTextStyles.bodyMedium()),
+              SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        // Preview PDF
+                        await Printing.layoutPdf(
+                            onLayout: (_) async => pdfBytes);
+                      },
+                      icon: Icon(Icons.visibility, size: 18),
+                      label: Text('معاينة', style: ArabicTextStyles.button()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('إلغاء', style: ArabicTextStyles.button()),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('إرسال للمدير', style: ArabicTextStyles.button()),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmSend == true) {
+        // 3) Close dialog and return result to trigger _processEvaluation
+        Navigator.pop(context);
+        widget.onComplete(result);
+      }
+    } catch (e) {
+      // Hide loading if it's showing
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطأ في إنشاء التقرير: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -2513,15 +2817,46 @@ class _ComprehensiveEvaluationDialogState
   // =========================
 
   // NO font assets used here
+// Simplified PDF generation without fontFallback
+// Fixed PDF generation with proper variable scope
   Future<Uint8List> _buildPdfReport(Map<String, dynamic> data) async {
     final doc = pw.Document();
 
-    // Use default built-in font (Helvetica). No custom font is loaded.
-    final h1 = pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold);
-    final h2 = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
-    final body = pw.TextStyle(fontSize: 11);
+    // Declare text styles outside try-catch so they're accessible everywhere
+    late pw.TextStyle h1;
+    late pw.TextStyle h2;
+    late pw.TextStyle body;
+    late pw.TextStyle bodyBold;
 
-    pw.Widget qaBox(String q, String? a, String notes) {
+    try {
+      // Try to load your bundled Arabic fonts for PDF
+      final arabicFontData =
+          await rootBundle.load('fonts/NotoSansArabic-Regular.ttf');
+      final arabicFont = pw.Font.ttf(arabicFontData);
+
+      final arabicBoldFontData =
+          await rootBundle.load('fonts/NotoSansArabic-Bold.ttf');
+      final arabicBoldFont = pw.Font.ttf(arabicBoldFontData);
+
+      // Define text styles with Arabic fonts
+      h1 = pw.TextStyle(
+          fontSize: 22, fontWeight: pw.FontWeight.bold, font: arabicBoldFont);
+      h2 = pw.TextStyle(
+          fontSize: 16, fontWeight: pw.FontWeight.bold, font: arabicBoldFont);
+      body = pw.TextStyle(fontSize: 11, font: arabicFont);
+      bodyBold = pw.TextStyle(fontSize: 11, font: arabicBoldFont);
+    } catch (e) {
+      // Fallback: Use default fonts if Arabic fonts fail to load
+      print('Failed to load Arabic fonts for PDF: $e');
+
+      h1 = pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold);
+      h2 = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
+      body = pw.TextStyle(fontSize: 11);
+      bodyBold = pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold);
+    }
+
+    // Helper function to create question-answer boxes
+    pw.Widget qaBox(String question, String? answer, String notes) {
       return pw.Container(
         padding: const pw.EdgeInsets.all(8),
         decoration: pw.BoxDecoration(
@@ -2532,10 +2867,9 @@ class _ComprehensiveEvaluationDialogState
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('س: $q',
-                style: body.copyWith(fontWeight: pw.FontWeight.bold)),
-            if (a != null) pw.SizedBox(height: 2),
-            if (a != null) pw.Text('الإجابة: $a', style: body),
+            pw.Text('س: $question', style: bodyBold),
+            if (answer != null) pw.SizedBox(height: 2),
+            if (answer != null) pw.Text('الإجابة: $answer', style: body),
             if (notes.trim().isNotEmpty) pw.SizedBox(height: 2),
             if (notes.trim().isNotEmpty)
               pw.Text('ملاحظات: $notes', style: body),
@@ -2544,6 +2878,53 @@ class _ComprehensiveEvaluationDialogState
       );
     }
 
+    // Helper function to create metadata table
+    pw.Widget metaTable(List<List<String>> rows) {
+      return pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey300),
+        columnWidths: const {
+          0: pw.FlexColumnWidth(1.2),
+          1: pw.FlexColumnWidth(2.2),
+        },
+        children: [
+          for (final row in rows)
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(row[0], style: bodyBold),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(row[1], style: body),
+                ),
+              ],
+            ),
+        ],
+      );
+    }
+
+    // Helper function to create text boxes
+    pw.Widget textBox(String title, String content) {
+      final displayContent = content.trim().isEmpty ? '—' : content.trim();
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(title, style: h2),
+          pw.SizedBox(height: 6),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+              borderRadius: pw.BorderRadius.circular(6),
+            ),
+            child: pw.Text(displayContent, style: body),
+          ),
+        ],
+      );
+    }
+
+    // Define all sections
     final sections = <Map<String, dynamic>>[
       {
         'title': 'الأصالة والجدة',
@@ -2653,67 +3034,24 @@ class _ComprehensiveEvaluationDialogState
       },
     ];
 
-    pw.Widget metaGrid(List<List<String>> rows) {
-      return pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.grey300),
-        columnWidths: const {
-          0: pw.FlexColumnWidth(1.2),
-          1: pw.FlexColumnWidth(2.2),
-        },
-        children: [
-          for (final r in rows)
-            pw.TableRow(
-              children: [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(6),
-                  child: pw.Text(r[0],
-                      style: body.copyWith(fontWeight: pw.FontWeight.bold)),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(6),
-                  child: pw.Text(r[1], style: body),
-                ),
-              ],
-            ),
-        ],
-      );
-    }
-
-    pw.Widget boxed(String title, String text) {
-      final shown = (text.trim().isEmpty) ? '—' : text.trim();
-      return pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(title, style: h2),
-          pw.SizedBox(height: 6),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey300),
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Text(shown, style: body),
-          ),
-        ],
-      );
-    }
-
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         build: (context) => [
-          // Keep RTL direction, even with default font (shaping may not occur)
           pw.Directionality(
             textDirection: pw.TextDirection.rtl,
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
+                // Header
                 pw.Text('تقرير تقييم المقال – المرحلة الأولى', style: h1),
                 pw.SizedBox(height: 6),
                 pw.Divider(),
                 pw.SizedBox(height: 6),
-                metaGrid([
+
+                // Metadata table
+                metaTable([
                   [
                     'الباحث ودرجته العلمية',
                     '${data['doc_fullName'] ?? '—'} - ${data['doc_education'] ?? '—'}'
@@ -2723,24 +3061,34 @@ class _ComprehensiveEvaluationDialogState
                   ['تاريخ إنشاء التقرير', data['generated_at'] ?? '—'],
                 ]),
                 pw.SizedBox(height: 12),
-                for (final s in sections) ...[
-                  pw.Text('• ${s['title']}', style: h2),
+
+                // All sections
+                for (final section in sections) ...[
+                  pw.Text('• ${section['title']}', style: h2),
                   pw.SizedBox(height: 6),
-                  ...(s['items'] as List).map<pw.Widget>(
-                      (it) => qaBox(it['q'], it['a'], (it['n'] ?? ''))),
+                  ...(section['items'] as List).map<pw.Widget>(
+                    (item) => qaBox(item['q'], item['a'], item['n'] ?? ''),
+                  ),
                   pw.SizedBox(height: 10),
                 ],
-                boxed('رأي سكرتير التحرير', data['generalEvaluation'] ?? ''),
+
+                // Secretary opinion
+                textBox('رأي سكرتير التحرير', data['generalEvaluation'] ?? ''),
                 pw.SizedBox(height: 8),
-                boxed('التعديلات المطلوبة', data['modificationsNeeded'] ?? ''),
+                textBox(
+                    'التعديلات المطلوبة', data['modificationsNeeded'] ?? ''),
                 pw.SizedBox(height: 8),
-                boxed('التعليق العام', data['comment'] ?? ''),
+                textBox('التعليق العام', data['comment'] ?? ''),
+
+                // Footer
                 pw.SizedBox(height: 16),
                 pw.Divider(),
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
-                  child: pw.Text('— نهاية التقرير —',
-                      style: body.copyWith(color: PdfColors.grey600)),
+                  child: pw.Text(
+                    '— نهاية التقرير —',
+                    style: body.copyWith(color: PdfColors.grey600),
+                  ),
                 ),
               ],
             ),

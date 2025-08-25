@@ -12,12 +12,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
 import 'package:path/path.dart' as path;
+import 'package:qiraat/Widgets/documentInfoSection.dart';
 
 import '../../Classes/current_user_providerr.dart';
 import '../App_Constants.dart';
 import '../Document_Services.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/Action_history.dart';
 import '../Screens/Document_Handling/DocumentDetails/Widgets/senderinfocard.dart';
+import '../Widgets/Stage1TimeLine.dart';
 import '../models/document_model.dart';
 
 class Stage1HeadEditorDetailsPage extends StatefulWidget {
@@ -62,6 +64,10 @@ class _Stage1HeadEditorDetailsPageState
     _document = widget.document;
     _initializeAnimations();
     _getCurrentUserInfo();
+
+    // Initialize controllers
+    _commentController = TextEditingController();
+    _finalCommentController = TextEditingController();
   }
 
   void _initializeAnimations() {
@@ -92,9 +98,12 @@ class _Stage1HeadEditorDetailsPageState
     }
   }
 
+// Update your dispose method:
   @override
   void dispose() {
     _animationController.dispose();
+    _commentController.dispose();
+    _finalCommentController.dispose(); // Add this line
     super.dispose();
   }
 
@@ -294,6 +303,9 @@ class _Stage1HeadEditorDetailsPageState
     );
   }
 
+// Add this import at the top of your Stage1HeadEditorDetailsPage.dart file:
+
+// Replace your existing _buildContent method with this:
   Widget _buildContent(bool isDesktop) {
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -302,11 +314,21 @@ class _Stage1HeadEditorDetailsPageState
       ),
       child: Column(
         children: [
-          // Stage 1 Decision Timeline
-          _buildStage1DecisionTimeline(),
+          // Stage 1 Decision Timeline - Now using the separate widget
+          Stage1DecisionTimeline(
+            document: _document!,
+            onViewAttachedFile: _handleViewAttachedFile,
+            formatDate: _formatDate,
+          ),
 
           // Document Info Card with View File
-          _buildDocumentInfoCard(),
+          documentInfo(
+            fileName: _getFileName(),
+            FileTypeDisplayName: _getFileTypeDisplayName(),
+            handleViewFile: _handleViewFile,
+            handleDownloadFile: _handleDownloadFile,
+            document: _document,
+          ),
 
           // Sender Info Card
           SenderInfoCard(
@@ -327,523 +349,116 @@ class _Stage1HeadEditorDetailsPageState
     );
   }
 
-  Widget _buildDocumentInfoCard() {
-    return Container(
-      margin: EdgeInsets.only(bottom: 20),
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade100, Colors.blue.shade200],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.description,
-                    color: Colors.blue.shade700, size: 24),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'تفاصيل المستند',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'معلومات الملف المرفق',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+// Add this new method to handle viewing attached files from the timeline:
+  Future<void> _handleViewAttachedFile(String fileUrl) async {
+    if (fileUrl.isEmpty) {
+      _showErrorSnackBar('رابط الملف غير متوفر');
+      return;
+    }
 
-          SizedBox(height: 20),
+    setState(() => _isLoading = true);
 
-          // File Information
-          if (_document!.documentUrl != null &&
-              _document!.documentUrl!.isNotEmpty)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.grey.shade50, Colors.grey.shade100],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.attach_file,
-                          color: Colors.grey.shade600, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'الملف المرفق',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _getFileName(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xff2d3748),
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'نوع الملف: ${_getFileTypeDisplayName()}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: _handleViewFile,
-                            icon: Icon(Icons.visibility, size: 18),
-                            label: Text('عرض'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: _handleDownloadFile,
-                            icon: Icon(Icons.download, size: 18),
-                            label: Text('تحميل'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade600,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange.shade600, size: 20),
-                  SizedBox(width: 12),
-                  Text(
-                    'لا يوجد ملف مرفق',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.orange.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
+    try {
+      if (kIsWeb) {
+        await _openInNewTab(fileUrl);
+      } else {
+        await _handleMobileAttachedFileView(fileUrl);
+      }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في فتح الملف: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  Widget _buildStage1DecisionTimeline() {
-    final secretaryActions = _document!.actionLog
-        .where(
-            (action) => action.userPosition == AppConstants.POSITION_SECRETARY)
-        .toList();
-    final editorActions = _document!.actionLog
-        .where((action) =>
-            action.userPosition == AppConstants.POSITION_MANAGING_EDITOR)
-        .toList();
+// Add this helper method for mobile attached file viewing:
+  Future<void> _handleMobileAttachedFileView(String fileUrl) async {
+    try {
+      // For mobile, we'll download and open the attached file
+      final String fileName = _getFileNameFromUrl(fileUrl);
+      final String fileExtension = _getFileExtensionFromUrl(fileUrl);
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 20),
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.indigo.shade100, Colors.indigo.shade200],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.timeline,
-                    color: Colors.indigo.shade700, size: 24),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'مسار المراجعة في المرحلة الأولى',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.indigo.shade700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'تسلسل القرارات المتخذة حتى الآن',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 24),
+      if (!supportedFileTypes.containsKey(fileExtension)) {
+        throw Exception('نوع الملف غير مدعوم');
+      }
 
-          // Secretary Decision
-          if (secretaryActions.isNotEmpty)
-            _buildDecisionStep(
-              title: 'قرار السكرتير',
-              action: secretaryActions.last,
-              icon: Icons.assignment_ind,
-              color: Colors.orange,
-              isFirst: true,
-            ),
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final String filePath = '${appDocDir.path}/$fileName';
 
-          if (secretaryActions.isNotEmpty && editorActions.isNotEmpty)
-            _buildConnector(),
+      await Dio().download(
+        fileUrl,
+        filePath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            double progress = received / total;
+            debugPrint(
+                'Download progress: ${(progress * 100).toStringAsFixed(0)}%');
+          }
+        },
+      );
 
-          // Editor Decision
-          if (editorActions.isNotEmpty)
-            _buildDecisionStep(
-              title: 'قرار مدير التحرير',
-              action: editorActions.last,
-              icon: Icons.supervisor_account,
-              color: Colors.purple,
-              isFirst: false,
-            ),
+      final File file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('فشل في تنزيل الملف');
+      }
 
-          if (editorActions.isNotEmpty) _buildConnector(),
+      final OpenResult result = await OpenFile.open(
+        filePath,
+        type: supportedFileTypes[fileExtension],
+      );
 
-          // Head Editor Decision (Pending)
-          _buildPendingDecisionStep(),
-        ],
-      ),
-    );
+      switch (result.type) {
+        case ResultType.done:
+          _showSuccessSnackBar('تم فتح الملف بنجاح');
+          break;
+        case ResultType.noAppToOpen:
+          _showWarningSnackBar('لا يوجد تطبيق مناسب لفتح هذا النوع من الملفات');
+          break;
+        case ResultType.permissionDenied:
+          _showErrorSnackBar('تم رفض الإذن لفتح الملف');
+          break;
+        case ResultType.fileNotFound:
+          _showErrorSnackBar('لم يتم العثور على الملف');
+          break;
+        case ResultType.error:
+          _showErrorSnackBar('حدث خطأ أثناء فتح الملف: ${result.message}');
+          break;
+      }
+    } catch (e) {
+      throw Exception('خطأ في فتح الملف: ${e.toString()}');
+    }
   }
 
-  Widget _buildDecisionStep({
-    required String title,
-    required ActionLogModel action,
-    required IconData icon,
-    required Color color,
-    required bool isFirst,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(Icons.check, color: Colors.white, size: 20),
-            ),
-          ],
-        ),
-        SizedBox(width: 16),
-        Expanded(
-          child: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: color, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Text(
-                  action.action,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xff2d3748),
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '${action.userName} - ${_formatDate(action.timestamp)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                if (action.comment != null && action.comment!.isNotEmpty) ...[
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      action.comment!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-                if (action.attachedFileUrl != null) ...[
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.attach_file, size: 14, color: color),
-                      SizedBox(width: 4),
-                      Text(
-                        'تقرير مرفق',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: color,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+// Add these helper methods to extract filename from URL:
+  String _getFileNameFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      if (segments.isNotEmpty) {
+        final lastSegment = segments.last;
+        if (lastSegment.contains('.')) {
+          return Uri.decodeComponent(lastSegment);
+        }
+      }
+    } catch (e) {
+      // Continue to fallback
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return 'attached_file_$timestamp.pdf';
   }
 
-  Widget _buildConnector() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          SizedBox(width: 20),
-          Container(
-            width: 2,
-            height: 20,
-            color: Colors.grey.shade300,
-          ),
-          SizedBox(width: 14),
-          Icon(Icons.arrow_downward, color: Colors.grey.shade400, size: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPendingDecisionStep() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppStyles.isStage1FinalStatus(_document!.status)
-                    ? Colors.green
-                    : Colors.grey.shade300,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppStyles.isStage1FinalStatus(_document!.status)
-                      ? Colors.green.shade700
-                      : Colors.indigo.shade400,
-                  width: 3,
-                ),
-              ),
-              child: Icon(
-                AppStyles.isStage1FinalStatus(_document!.status)
-                    ? Icons.check
-                    : Icons.admin_panel_settings,
-                color: AppStyles.isStage1FinalStatus(_document!.status)
-                    ? Colors.white
-                    : Colors.indigo.shade600,
-                size: 20,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(width: 16),
-        Expanded(
-          child: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: AppStyles.isStage1FinalStatus(_document!.status)
-                    ? [
-                        Colors.green.withOpacity(0.1),
-                        Colors.green.withOpacity(0.05)
-                      ]
-                    : [
-                        Colors.indigo.withOpacity(0.1),
-                        Colors.indigo.withOpacity(0.05)
-                      ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppStyles.isStage1FinalStatus(_document!.status)
-                    ? Colors.green.withOpacity(0.3)
-                    : Colors.indigo.withOpacity(0.3),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.admin_panel_settings,
-                      color: AppStyles.isStage1FinalStatus(_document!.status)
-                          ? Colors.green
-                          : Colors.indigo,
-                      size: 20,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'قرار رئيس التحرير',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppStyles.isStage1FinalStatus(_document!.status)
-                            ? Colors.green
-                            : Colors.indigo,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Text(
-                  AppStyles.isStage1FinalStatus(_document!.status)
-                      ? AppStyles.getStatusDisplayName(_document!.status)
-                      : 'في انتظار القرار النهائي',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xff2d3748),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+  String _getFileExtensionFromUrl(String url) {
+    try {
+      String urlPath = Uri.parse(url).path;
+      String extension = path.extension(urlPath).toLowerCase();
+      if (extension.isNotEmpty && supportedFileTypes.containsKey(extension)) {
+        return extension;
+      }
+      return '.pdf';
+    } catch (e) {
+      return '.pdf';
+    }
   }
 
   Widget _buildHeadEditorActionPanel() {
@@ -1034,6 +649,8 @@ class _Stage1HeadEditorDetailsPageState
     );
   }
 
+// Replace the _buildFinalDecisionActions method with this inline version:
+
   Widget _buildFinalDecisionActions() {
     return Column(
       children: [
@@ -1076,60 +693,460 @@ class _Stage1HeadEditorDetailsPageState
 
         SizedBox(height: 24),
 
-        Text(
-          'القرارات المتاحة:',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.indigo.shade700,
-          ),
-        ),
-
-        SizedBox(height: 16),
-
-        // Final Decision Buttons
-        Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: _buildFinalActionButton(
-                title: 'الموافقة النهائية للمرحلة الثانية',
-                subtitle: 'المقال مؤهل للانتقال للتحكيم العلمي',
-                icon: Icons.verified,
-                color: Colors.green,
-                onPressed: () => _showFinalActionDialog('final_approve'),
-              ),
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFinalActionButton(
-                    title: 'الرفض النهائي',
-                    subtitle: 'رفض المقال نهائياً',
-                    icon: Icons.block,
-                    color: Colors.red,
-                    onPressed: () => _showFinalActionDialog('final_reject'),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _buildFinalActionButton(
-                    title: 'موافقة نشر الموقع',
-                    subtitle: 'نشر على الموقع فقط',
-                    icon: Icons.public,
-                    color: Colors.blue,
-                    onPressed: () => _showFinalActionDialog('website_approve'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        // Inline Final Decision Form
+        _buildInlineFinalDecisionForm(),
       ],
     );
   }
 
+  Future<String?> _uploadFileToFirebaseStorage(PlatformFile file) async {
+    try {
+      final FirebaseStorage storage = FirebaseStorage.instance;
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName = 'editor_reports/${timestamp}_${file.name}';
+
+      Reference ref = storage.ref().child(fileName);
+
+      if (kIsWeb) {
+        // Web upload
+        if (file.bytes != null) {
+          UploadTask uploadTask = ref.putData(
+            file.bytes!,
+            SettableMetadata(
+                contentType: _getContentType(file.extension ?? '')),
+          );
+
+          TaskSnapshot snapshot = await uploadTask;
+          return await snapshot.ref.getDownloadURL();
+        }
+      } else {
+        // Mobile upload
+        if (file.path != null) {
+          File uploadFile = File(file.path!);
+          UploadTask uploadTask = ref.putFile(
+            uploadFile,
+            SettableMetadata(
+                contentType: _getContentType(file.extension ?? '')),
+          );
+
+          TaskSnapshot snapshot = await uploadTask;
+          return await snapshot.ref.getDownloadURL();
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('Error uploading file to Firebase Storage: $e');
+      return null;
+    }
+  }
+
+  // ADD THIS MISSING METHOD:
+  String _getContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+// Add these new variables to your class state (if not already added for the editor actions):
+// Add to _Stage1EditorDetailsPageState class
+  late TextEditingController _finalCommentController;
+  late TextEditingController _commentController; // Missing - add this
+
+  String? _finalAttachedFileName;
+  String? _finalAttachedFileUrl;
+  bool _isFinalUploading = false;
+  String? _selectedFinalAction;
+
+// Add this new method:
+  Widget _buildInlineFinalDecisionForm() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child:
+                    Icon(Icons.gavel, color: Colors.indigo.shade600, size: 20),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'القرار النهائي',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo.shade700,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 20),
+
+          // Comment Field
+          Text(
+            'مبررات القرار النهائي (مطلوب):',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          TextField(
+            controller: _finalCommentController,
+            decoration: InputDecoration(
+              hintText: 'اكتب مبررات وتفاصيل القرار النهائي هنا...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.indigo.shade400, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+              contentPadding: EdgeInsets.all(16),
+            ),
+            maxLines: 4,
+            textAlign: TextAlign.right,
+          ),
+
+          SizedBox(height: 20),
+
+          // File Attachment Section
+          Text(
+            'إرفاق تقرير القرار (اختياري):',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: InkWell(
+              onTap: _isFinalUploading ? null : _pickFinalFile,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: _isFinalUploading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.attach_file,
+                              color: Colors.indigo.shade600, size: 20),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _finalAttachedFileName ?? 'اختر ملف للإرفاق',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: _finalAttachedFileName != null
+                                  ? Colors.black87
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                          if (_finalAttachedFileName == null)
+                            Text(
+                              'يمكنك إرفاق تقرير يوضح تفاصيل ومبررات القرار (PDF, DOC, DOCX)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_finalAttachedFileName != null && !_isFinalUploading)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _finalAttachedFileName = null;
+                            _finalAttachedFileUrl = null;
+                          });
+                        },
+                        icon: Icon(Icons.close, color: Colors.red.shade400),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          SizedBox(height: 24),
+
+          // Action Selection
+          Text(
+            'اختر القرار النهائي:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          SizedBox(height: 12),
+
+          // Final Decision Buttons
+          Column(
+            children: [
+              // Final Approve Button (Full Width)
+              SizedBox(
+                width: double.infinity,
+                child: _buildInlineFinalActionButton(
+                  action: 'final_approve',
+                  title: 'الموافقة النهائية للمرحلة الثانية',
+                  subtitle: 'المقال مؤهل للانتقال للتحكيم العلمي',
+                  icon: Icons.verified,
+                  color: Colors.green,
+                  isFullWidth: true,
+                ),
+              ),
+              SizedBox(height: 12),
+              // Reject and Website Approve (Side by Side)
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInlineFinalActionButton(
+                      action: 'final_reject',
+                      title: 'الرفض النهائي',
+                      subtitle: 'رفض المقال نهائياً',
+                      icon: Icons.block,
+                      color: Colors.red,
+                      isFullWidth: false,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: _buildInlineFinalActionButton(
+                      action: 'website_approve',
+                      title: 'موافقة نشر الموقع',
+                      subtitle: 'نشر على الموقع فقط',
+                      icon: Icons.public,
+                      color: Colors.blue,
+                      isFullWidth: false,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          SizedBox(height: 20),
+
+          // Submit Button
+          if (_selectedFinalAction != null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _canSubmitFinalAction() ? _submitFinalAction : null,
+                icon: Icon(Icons.send, size: 20),
+                label: Text(
+                  'تنفيذ القرار النهائي',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _getFinalActionColor(_selectedFinalAction!),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+// Helper method for final action buttons:
+  Widget _buildInlineFinalActionButton({
+    required String action,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required bool isFullWidth,
+  }) {
+    bool isSelected = _selectedFinalAction == action;
+
+    return Container(
+      height: isFullWidth ? 110 : 100,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected ? color : Colors.grey.shade300,
+          width: isSelected ? 2 : 1,
+        ),
+        color: isSelected ? color.withOpacity(0.1) : Colors.white,
+      ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedFinalAction = action;
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: isFullWidth ? 32 : 28,
+                color: isSelected ? color : Colors.grey.shade600,
+              ),
+              SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: isFullWidth ? 14 : 12,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? color : Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: isFullWidth ? 12 : 10,
+                  color: isSelected
+                      ? color.withOpacity(0.8)
+                      : Colors.grey.shade500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+// Helper methods for final actions:
+  bool _canSubmitFinalAction() {
+    return _finalCommentController.text.trim().isNotEmpty &&
+        _selectedFinalAction != null &&
+        !_isFinalUploading;
+  }
+
+  Color _getFinalActionColor(String action) {
+    switch (action) {
+      case 'final_approve':
+        return Colors.green;
+      case 'final_reject':
+        return Colors.red;
+      case 'website_approve':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _submitFinalAction() {
+    if (_canSubmitFinalAction()) {
+      _processFinalAction(
+        _selectedFinalAction!,
+        _finalCommentController.text.trim(),
+        _finalAttachedFileUrl,
+        _finalAttachedFileName,
+      );
+    }
+  }
+
+// File picker method for final actions:
+  Future<void> _pickFinalFile() async {
+    setState(() => _isFinalUploading = true);
+
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx'],
+      );
+
+      if (result != null) {
+        final file = result.files.single;
+        final fileName = file.name;
+
+        // Upload to Firebase Storage
+        final uploadResult = await _uploadFileToFirebaseStorage(file);
+
+        if (uploadResult != null) {
+          setState(() {
+            _finalAttachedFileName = fileName;
+            _finalAttachedFileUrl = uploadResult;
+          });
+          _showSuccessSnackBar('تم رفع الملف بنجاح: $fileName');
+        } else {
+          throw Exception('فشل في رفع الملف');
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في رفع الملف: $e');
+    } finally {
+      setState(() => _isFinalUploading = false);
+    }
+  }
+
+// Remove or comment out these methods since they're no longer needed:
+// - _showFinalActionDialog
+// - Any dialog-related methods for final actions
   Widget _buildGuidelineItem(String text) {
     return Padding(
       padding: EdgeInsets.only(bottom: 8),
@@ -1629,42 +1646,6 @@ class _Stage1HeadEditorDetailsPageState
     }
   }
 
-  void _showFinalActionDialog(String action) {
-    String title = '';
-    String description = '';
-    Color color = Colors.blue;
-
-    switch (action) {
-      case 'final_approve':
-        title = 'الموافقة النهائية للمرحلة الثانية';
-        description =
-            'سيتم قبول المقال للانتقال للمرحلة الثانية (التحكيم العلمي)';
-        color = Colors.green;
-        break;
-      case 'final_reject':
-        title = 'الرفض النهائي';
-        description = 'سيتم رفض المقال نهائياً وإشعار المؤلف';
-        color = Colors.red;
-        break;
-      case 'website_approve':
-        title = 'موافقة نشر الموقع';
-        description = 'سيتم الموافقة على نشر المقال على الموقع الإلكتروني فقط';
-        color = Colors.blue;
-        break;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => HeadEditorActionDialog(
-        title: title,
-        description: description,
-        color: color,
-        onConfirm: (comment, fileUrl, fileName) =>
-            _processFinalAction(action, comment, fileUrl, fileName),
-      ),
-    );
-  }
-
   Future<void> _processFinalAction(
       String action, String comment, String? fileUrl, String? fileName) async {
     setState(() => _isLoading = true);
@@ -1773,271 +1754,5 @@ class _Stage1HeadEditorDetailsPageState
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
-  }
-}
-
-// 3. Head Editor Action Dialog - Updated
-class HeadEditorActionDialog extends StatefulWidget {
-  final String title;
-  final String description;
-  final Color color;
-  final Function(String, String?, String?) onConfirm;
-
-  const HeadEditorActionDialog({
-    Key? key,
-    required this.title,
-    required this.description,
-    required this.color,
-    required this.onConfirm,
-  }) : super(key: key);
-
-  @override
-  _HeadEditorActionDialogState createState() => _HeadEditorActionDialogState();
-}
-
-class _HeadEditorActionDialogState extends State<HeadEditorActionDialog> {
-  final TextEditingController _commentController = TextEditingController();
-  String? _attachedFileName;
-  String? _attachedFileUrl;
-  bool _isUploading = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: widget.color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.admin_panel_settings,
-                      color: widget.color, size: 20),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              widget.description,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Comment field
-            Text('القرار والمبررات (مطلوب):'),
-            SizedBox(height: 8),
-            TextField(
-              controller: _commentController,
-              decoration: InputDecoration(
-                hintText: 'اكتب قرارك النهائي ومبرراته...',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              maxLines: 4,
-              textAlign: TextAlign.right,
-            ),
-
-            SizedBox(height: 16),
-
-            // File attachment (optional)
-            Text('إرفاق تقرير نهائي (اختياري):'),
-            SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: InkWell(
-                onTap: _isUploading ? null : _pickFile,
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.all(12),
-                      child: _isUploading
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.attach_file,
-                              color: Colors.grey.shade600),
-                    ),
-                    Expanded(
-                      child: Text(
-                        _attachedFileName ??
-                            'اختر ملف للإرفاق (التقرير النهائي)',
-                        style: TextStyle(
-                          color: _attachedFileName != null
-                              ? Colors.black
-                              : Colors.grey.shade600,
-                        ),
-                      ),
-                    ),
-                    if (_attachedFileName != null && !_isUploading)
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _attachedFileName = null;
-                            _attachedFileUrl = null;
-                          });
-                        },
-                        icon: Icon(Icons.close, color: Colors.red),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'يمكنك إرفاق تقرير نهائي يوضح القرار ومبرراته (اختياري)',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: _canConfirm()
-                ? () {
-                    Navigator.pop(context);
-                    widget.onConfirm(
-                      _commentController.text.trim(),
-                      _attachedFileUrl,
-                      _attachedFileName,
-                    );
-                  }
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.color,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('تأكيد القرار'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _canConfirm() {
-    return _commentController.text.trim().isNotEmpty && !_isUploading;
-  }
-
-  Future<void> _pickFile() async {
-    setState(() => _isUploading = true);
-
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
-      );
-
-      if (result != null) {
-        final file = result.files.single;
-        final fileName = file.name;
-
-        // Upload to Firebase Storage
-        final uploadResult = await _uploadFileToFirebaseStorage(file);
-
-        if (uploadResult != null) {
-          setState(() {
-            _attachedFileName = fileName;
-            _attachedFileUrl = uploadResult;
-          });
-        } else {
-          throw Exception('فشل في رفع الملف');
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('خطأ في رفع الملف: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isUploading = false);
-    }
-  }
-
-  Future<String?> _uploadFileToFirebaseStorage(PlatformFile file) async {
-    try {
-      final FirebaseStorage storage = FirebaseStorage.instance;
-      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final String fileName = 'head_editor_reports/${timestamp}_${file.name}';
-
-      Reference ref = storage.ref().child(fileName);
-
-      if (kIsWeb) {
-        // Web upload
-        if (file.bytes != null) {
-          UploadTask uploadTask = ref.putData(
-            file.bytes!,
-            SettableMetadata(
-                contentType: _getContentType(file.extension ?? '')),
-          );
-
-          TaskSnapshot snapshot = await uploadTask;
-          return await snapshot.ref.getDownloadURL();
-        }
-      } else {
-        // Mobile upload
-        if (file.path != null) {
-          File uploadFile = File(file.path!);
-          UploadTask uploadTask = ref.putFile(
-            uploadFile,
-            SettableMetadata(
-                contentType: _getContentType(file.extension ?? '')),
-          );
-
-          TaskSnapshot snapshot = await uploadTask;
-          return await snapshot.ref.getDownloadURL();
-        }
-      }
-
-      return null;
-    } catch (e) {
-      print('Error uploading file to Firebase Storage: $e');
-      return null;
-    }
-  }
-
-  String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      default:
-        return 'application/octet-stream';
-    }
   }
 }

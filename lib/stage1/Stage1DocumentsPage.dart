@@ -1,5 +1,6 @@
 // pages/Stage1/Stage1DocumentsPage.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../App_Constants.dart';
@@ -21,6 +22,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
   List<DocumentModel> _filteredDocuments = [];
   String _selectedFilter = 'all';
   String _searchQuery = '';
+  bool _isSpreadsheetView = true; // Default to table view
 
   // Stream subscription for real-time updates
   Stream<List<DocumentModel>>? _documentsStream;
@@ -58,7 +60,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
 
   void _initializeAnimations() {
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 600), // Reduced animation time
+      duration: Duration(milliseconds: 600),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -68,7 +70,6 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
   }
 
   void _initializeDocumentsStream() {
-    // Create a stream that listens to all Stage 1 documents in real-time
     _documentsStream = _documentService.getStage1DocumentsStream();
   }
 
@@ -144,7 +145,11 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
             children: [
               _buildHeader(),
               _buildFiltersSection(),
-              Expanded(child: _buildDocumentsStreamList()),
+              Expanded(
+                child: _isSpreadsheetView
+                    ? _buildSpreadsheetView()
+                    : _buildCardView(),
+              ),
             ],
           ),
         ),
@@ -180,6 +185,19 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
             icon: Icon(Icons.arrow_back_ios, color: Colors.white),
           ),
           SizedBox(width: 12),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              _isSpreadsheetView ? Icons.table_chart : Icons.view_agenda,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,7 +211,9 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
                   ),
                 ),
                 Text(
-                  'مراجعة وموافقة المقالات',
+                  _isSpreadsheetView
+                      ? 'عرض جدولي لمراجعة وموافقة المقالات'
+                      : 'مراجعة وموافقة المقالات',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white.withOpacity(0.9),
@@ -202,6 +222,8 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
               ],
             ),
           ),
+          _buildViewToggle(),
+          SizedBox(width: 12),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
@@ -221,15 +243,66 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
     );
   }
 
+  Widget _buildViewToggle() {
+    return Container(
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            icon: Icons.view_agenda,
+            isSelected: !_isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = false),
+          ),
+          SizedBox(width: 4),
+          _buildToggleButton(
+            icon: Icons.table_chart,
+            isSelected: _isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
   Widget _buildFiltersSection() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       color: Colors.grey.shade50,
       child: Column(
         children: [
-          // Search Bar - More compact
+          // Search Bar
           Container(
-            height: 40, // Reduced height
+            height: 40,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(10),
@@ -262,7 +335,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
 
           SizedBox(height: 10),
 
-          // Filter Buttons - More compact
+          // Filter Buttons
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -348,7 +421,285 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
     );
   }
 
-  Widget _buildDocumentsStreamList() {
+  Widget _buildSpreadsheetView() {
+    return StreamBuilder<List<DocumentModel>>(
+      stream: _documentsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: CircularProgressIndicator(color: AppStyles.primaryColor),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _buildErrorState(snapshot.error.toString());
+        }
+
+        final allDocuments = snapshot.data ?? [];
+        final filteredDocuments = _applyFilters(allDocuments);
+
+        // Update the filtered documents for the header count
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _filteredDocuments = filteredDocuments;
+            });
+          }
+        });
+
+        if (filteredDocuments.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return Column(
+          children: [
+            _buildSpreadsheetHeader(),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredDocuments.length,
+                itemBuilder: (context, index) {
+                  return _buildSpreadsheetRow(filteredDocuments[index], index);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSpreadsheetHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(flex: 2, child: _buildHeaderCell('اسم المؤلف')),
+            Expanded(flex: 3, child: _buildHeaderCell('البريد الإلكتروني')),
+            Expanded(flex: 3, child: _buildHeaderCell('الحالة')),
+            Expanded(flex: 2, child: _buildHeaderCell('المراجع الحالي')),
+            Expanded(flex: 2, child: _buildHeaderCell('مدة المراجعة')),
+            Expanded(flex: 2, child: _buildHeaderCell('التاريخ')),
+            Expanded(flex: 1, child: _buildHeaderCell('')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff2d3748),
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildSpreadsheetRow(DocumentModel document, int index) {
+    final statusColor = AppStyles.getStatusColor(document.status);
+    final statusIcon = AppStyles.getStatusIcon(document.status);
+    final formattedDate = DateFormat('MM/dd\nHH:mm').format(document.timestamp);
+    final currentReviewer = _getCurrentReviewer(document.status);
+    final reviewDuration = _getReviewDuration(document.timestamp);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _navigateToDetailsPage(document),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Author Name
+              Expanded(
+                flex: 2,
+                child: Text(
+                  document.fullName.isNotEmpty ? document.fullName : 'غير محدد',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xff2d3748),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Email
+              Expanded(
+                flex: 3,
+                child: Text(
+                  document.email.isNotEmpty ? document.email : '--',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Status
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 12, color: statusColor),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          AppStyles.getStatusDisplayName(document.status),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Current Reviewer
+              Expanded(
+                flex: 2,
+                child: Text(
+                  currentReviewer,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Review Duration
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getDurationColor(reviewDuration).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    reviewDuration,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _getDurationColor(reviewDuration),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              // Actions
+              Expanded(
+                flex: 1,
+                child: IconButton(
+                  icon: Icon(Icons.arrow_forward_ios,
+                      size: 16, color: AppStyles.primaryColor),
+                  onPressed: () => _navigateToDetailsPage(document),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getCurrentReviewer(String status) {
+    if ([AppConstants.INCOMING, AppConstants.SECRETARY_REVIEW]
+        .contains(status)) {
+      return 'السكرتير';
+    } else if ([
+      AppConstants.SECRETARY_APPROVED,
+      AppConstants.SECRETARY_REJECTED,
+      AppConstants.SECRETARY_EDIT_REQUESTED,
+      AppConstants.EDITOR_REVIEW
+    ].contains(status)) {
+      return 'مدير التحرير';
+    } else if ([
+      AppConstants.EDITOR_APPROVED,
+      AppConstants.EDITOR_REJECTED,
+      AppConstants.EDITOR_WEBSITE_RECOMMENDED,
+      AppConstants.EDITOR_EDIT_REQUESTED,
+      AppConstants.HEAD_REVIEW
+    ].contains(status)) {
+      return 'رئيس التحرير';
+    } else {
+      return 'مكتملة';
+    }
+  }
+
+  String _getReviewDuration(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays == 0) {
+      return 'اليوم';
+    } else if (difference.inDays == 1) {
+      return 'يوم واحد';
+    } else {
+      return '${difference.inDays} أيام';
+    }
+  }
+
+  Color _getDurationColor(String duration) {
+    if (duration.contains('اليوم')) {
+      return Colors.green;
+    } else if (duration.contains('واحد') ||
+        duration.contains('2') ||
+        duration.contains('3')) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
+  Widget _buildCardView() {
     return StreamBuilder<List<DocumentModel>>(
       stream: _documentsStream,
       builder: (context, snapshot) {
@@ -372,25 +723,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red),
-                SizedBox(height: 16),
-                Text(
-                  'خطأ في تحميل المستندات',
-                  style: TextStyle(fontSize: 18, color: Colors.red),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
+          return _buildErrorState(snapshot.error.toString());
         }
 
         final allDocuments = snapshot.data ?? [];
@@ -410,7 +743,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
         }
 
         return ListView.builder(
-          padding: EdgeInsets.all(16), // Reduced padding
+          padding: EdgeInsets.all(16),
           itemCount: filteredDocuments.length,
           itemBuilder: (context, index) {
             final document = filteredDocuments[index];
@@ -418,6 +751,28 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
           },
         );
       },
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red),
+          SizedBox(height: 16),
+          Text(
+            'خطأ في تحميل المستندات',
+            style: TextStyle(fontSize: 18, color: Colors.red),
+          ),
+          SizedBox(height: 8),
+          Text(
+            error,
+            style: TextStyle(fontSize: 14, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -647,7 +1002,7 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
 
         return Expanded(
           child: Container(
-            height: 3, // Reduced height
+            height: 3,
             margin: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
               color: isCompleted || isCurrent
@@ -746,7 +1101,6 @@ class _Stage1DocumentsPageState extends State<Stage1DocumentsPage>
       context,
       MaterialPageRoute(builder: (context) => page),
     );
-    // Removed manual refresh as stream will handle updates automatically
   }
 
   void _showQuickActions(DocumentModel document) {

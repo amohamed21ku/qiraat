@@ -1,9 +1,10 @@
-// pages/Stage3/Stage3DocumentsPage.dart - Stage 3 Production Workflow
+// pages/Stage3/Stage3DocumentsPage.dart - Stage 3 Production Workflow with Dual View
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qiraat/stage3/stage3FinalReviewerPage.dart';
 import 'package:qiraat/stage3/stage3HeadEditorPage.dart';
 import 'package:qiraat/stage3/stage3LayoutDesign.dart';
+import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../../Classes/current_user_providerr.dart';
@@ -11,10 +12,6 @@ import '../App_Constants.dart';
 import '../Document_Services.dart';
 import '../models/document_model.dart';
 import 'Stage3ManagingEditor.dart';
-// Import Stage 3 detail pages
-// import 'Stage3FinalReviewerPage.dart';
-// import 'Stage3HeadEditorPage.dart';
-// import 'Stage3ManagingEditorPage.dart';
 
 class Stage3DocumentsPage extends StatefulWidget {
   @override
@@ -30,6 +27,7 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
   String _selectedFilter = 'all';
   String _searchQuery = '';
   bool _isLoading = true;
+  bool _isSpreadsheetView = true; // Default to table view
 
   String? _currentUserId;
   String? _currentUserName;
@@ -133,8 +131,7 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
   }
 
   bool _isManagingEditor() {
-    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-        _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF;
+    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR;
   }
 
   void _applyFilters() {
@@ -291,7 +288,11 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
             children: [
               _buildHeader(),
               _buildFiltersSection(),
-              Expanded(child: _buildDocumentsList()),
+              Expanded(
+                child: _isSpreadsheetView
+                    ? _buildSpreadsheetView()
+                    : _buildCardView(),
+              ),
             ],
           ),
         ),
@@ -306,11 +307,13 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
             ? Colors.indigo.shade600
             : Colors.deepPurple.shade600;
 
-    IconData headerIcon = _isLayoutDesigner()
-        ? Icons.design_services
-        : _isFinalReviewer()
-            ? Icons.fact_check
-            : Icons.publish;
+    IconData headerIcon = _isSpreadsheetView
+        ? Icons.table_chart
+        : (_isLayoutDesigner()
+            ? Icons.design_services
+            : _isFinalReviewer()
+                ? Icons.fact_check
+                : Icons.publish);
 
     return Container(
       padding: EdgeInsets.fromLTRB(20, 50, 20, 16),
@@ -364,7 +367,9 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
                       ),
                     ),
                     Text(
-                      _getUserRoleDescription(),
+                      _isSpreadsheetView
+                          ? 'عرض جدولي للإنتاج النهائي والنشر'
+                          : _getUserRoleDescription(),
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white.withOpacity(0.9),
@@ -373,6 +378,8 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
                   ],
                 ),
               ),
+              _buildViewToggle(),
+              SizedBox(width: 12),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -392,6 +399,57 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
           SizedBox(height: 24),
           _buildStage3OverviewStats(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            icon: Icons.view_agenda,
+            isSelected: !_isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = false),
+          ),
+          SizedBox(width: 4),
+          _buildToggleButton(
+            icon: Icons.table_chart,
+            isSelected: _isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -812,7 +870,308 @@ class _Stage3DocumentsPageState extends State<Stage3DocumentsPage>
     );
   }
 
-  Widget _buildDocumentsList() {
+  Widget _buildSpreadsheetView() {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: Colors.deepPurple.shade600,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _buildSpreadsheetHeader(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _filteredDocuments.length,
+            itemBuilder: (context, index) {
+              return _buildSpreadsheetRow(_filteredDocuments[index], index);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpreadsheetHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(flex: 2, child: _buildHeaderCell('اسم المؤلف')),
+            Expanded(flex: 3, child: _buildHeaderCell('البريد الإلكتروني')),
+            Expanded(flex: 3, child: _buildHeaderCell('الحالة')),
+            Expanded(flex: 2, child: _buildHeaderCell('المسؤول الحالي')),
+            Expanded(flex: 2, child: _buildHeaderCell('مدة الإنتاج')),
+            Expanded(flex: 2, child: _buildHeaderCell('التاريخ')),
+            Expanded(flex: 1, child: _buildHeaderCell('')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff2d3748),
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildSpreadsheetRow(DocumentModel document, int index) {
+    final statusColor = AppStyles.getStage3StatusColor(document.status);
+    final statusIcon = AppStyles.getStage3StatusIcon(document.status);
+    final formattedDate = DateFormat('MM/dd\nHH:mm').format(document.timestamp);
+    final currentResponsible = _getCurrentResponsible(document.status);
+    final productionDuration = _getProductionDuration(document.timestamp);
+
+    // Check if this is a task for current user
+    final isMyTask = _getMyTasks().contains(document.status);
+
+    // Special highlighting for Stage2_approved documents
+    bool isReadyForLayout = document.status == AppConstants.STAGE2_APPROVED;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+          left: isReadyForLayout || isMyTask
+              ? BorderSide(color: Colors.green, width: 3)
+              : BorderSide.none,
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _navigateToDetailsPage(document),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Author Name
+              Expanded(
+                flex: 2,
+                child: Row(
+                  children: [
+                    if (isReadyForLayout)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        margin: EdgeInsets.only(left: 8),
+                      )
+                    else if (isMyTask)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                        margin: EdgeInsets.only(left: 8),
+                      ),
+                    Expanded(
+                      child: Text(
+                        document.fullName.isNotEmpty
+                            ? document.fullName
+                            : 'غير محدد',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff2d3748),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Email
+              Expanded(
+                flex: 3,
+                child: Text(
+                  document.email.isNotEmpty ? document.email : '--',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Status
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 12, color: statusColor),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          AppStyles.getStatusDisplayName(document.status),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Current Responsible
+              Expanded(
+                flex: 2,
+                child: Text(
+                  currentResponsible,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Production Duration
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color:
+                        _getDurationColor(productionDuration).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    productionDuration,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _getDurationColor(productionDuration),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              // Actions
+              Expanded(
+                flex: 1,
+                child: IconButton(
+                  icon: Icon(Icons.arrow_forward_ios,
+                      size: 16,
+                      color: isReadyForLayout || isMyTask
+                          ? Colors.green
+                          : Colors.deepPurple.shade600),
+                  onPressed: () => _navigateToDetailsPage(document),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getCurrentResponsible(String status) {
+    if ([AppConstants.STAGE2_APPROVED].contains(status)) {
+      return 'رئيس التحرير';
+    } else if ([
+      AppConstants.LAYOUT_DESIGN_STAGE3,
+      AppConstants.LAYOUT_REVISION_REQUESTED,
+      AppConstants.FINAL_MODIFICATIONS
+    ].contains(status)) {
+      return 'مصمم الإخراج';
+    } else if ([
+      AppConstants.LAYOUT_DESIGN_COMPLETED,
+      AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT,
+      AppConstants.MANAGING_EDITOR_FINAL_CHECK
+    ].contains(status)) {
+      return 'مدير التحرير';
+    } else if ([
+      AppConstants.HEAD_EDITOR_FIRST_REVIEW,
+      AppConstants.HEAD_EDITOR_FINAL_APPROVAL
+    ].contains(status)) {
+      return 'رئيس التحرير';
+    } else if ([AppConstants.FINAL_REVIEW_STAGE].contains(status)) {
+      return 'المراجع النهائي';
+    } else {
+      return 'منشور';
+    }
+  }
+
+  String _getProductionDuration(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays == 0) {
+      return 'اليوم';
+    } else if (difference.inDays == 1) {
+      return 'يوم واحد';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} أيام';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()} أسابيع';
+    } else {
+      return '${(difference.inDays / 30).floor()} أشهر';
+    }
+  }
+
+  Color _getDurationColor(String duration) {
+    if (duration.contains('اليوم') || duration.contains('واحد')) {
+      return Colors.green;
+    } else if (duration.contains('أيام') && !duration.contains('7')) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
+  Widget _buildCardView() {
     if (_isLoading) {
       return Center(
         child: Column(

@@ -2,12 +2,12 @@ import 'package:arabic_font/arabic_font.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qiraat/Screens/mainscreens/menuPage.dart';
 
 import 'Classes/current_user_providerr.dart';
 import 'Screens/LoginScreen.dart';
 import 'Screens/SignupScreen.dart';
 import 'Screens/WelcomeScreen.dart';
-import 'Screens/mainscreens/HomeScreen.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
         routes: {
           "welcomescreen": (context) => const WelcomeScreen(),
           "loginscreen": (context) => const LoginScreen(),
-          'homescreen': (context) => HomeScreen(),
+          'homescreen': (context) => MenuPage(),
           'signup': (context) => const SignUpScreen(),
         },
       ),

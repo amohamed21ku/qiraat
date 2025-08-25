@@ -12,6 +12,7 @@ import 'package:qiraat/stage3/Stage3ManagingEditor.dart';
 import 'package:qiraat/stage3/stage3FinalReviewerPage.dart';
 import 'package:qiraat/stage3/stage3HeadEditorPage.dart';
 import 'package:qiraat/stage3/stage3LayoutDesign.dart';
+import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../Classes/current_user_providerr.dart';
@@ -34,6 +35,7 @@ class _MyTasksPageState extends State<MyTasksPage>
   String _selectedStageFilter = 'all';
   String _selectedStatusFilter = 'all';
   bool _isLoading = true;
+  bool _isSpreadsheetView = true; // Default to table view
 
   String? _currentUserId;
   String? _currentUserName;
@@ -187,7 +189,6 @@ class _MyTasksPageState extends State<MyTasksPage>
       case AppConstants.POSITION_SECRETARY:
         return 'مراجعة الملفات الواردة والتحقق من المتطلبات';
       case AppConstants.POSITION_MANAGING_EDITOR:
-      case AppConstants.POSITION_EDITOR_CHIEF:
         return 'مراجعة المحتوى وإدارة سير العمل';
       case AppConstants.POSITION_HEAD_EDITOR:
         return 'الإشراف العام واتخاذ القرارات النهائية';
@@ -210,7 +211,6 @@ class _MyTasksPageState extends State<MyTasksPage>
       case AppConstants.POSITION_SECRETARY:
         return Colors.blue.shade600;
       case AppConstants.POSITION_MANAGING_EDITOR:
-      case AppConstants.POSITION_EDITOR_CHIEF:
         return Colors.purple.shade600;
       case AppConstants.POSITION_HEAD_EDITOR:
         return Colors.indigo.shade600;
@@ -246,7 +246,11 @@ class _MyTasksPageState extends State<MyTasksPage>
             children: [
               _buildHeader(),
               _buildFiltersSection(),
-              Expanded(child: _buildTasksList()),
+              Expanded(
+                child: _isSpreadsheetView
+                    ? _buildSpreadsheetView()
+                    : _buildCardView(),
+              ),
             ],
           ),
         ),
@@ -290,7 +294,7 @@ class _MyTasksPageState extends State<MyTasksPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.task_alt,
+                  _isSpreadsheetView ? Icons.table_chart : Icons.task_alt,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -309,7 +313,9 @@ class _MyTasksPageState extends State<MyTasksPage>
                       ),
                     ),
                     Text(
-                      _getUserRoleDescription(),
+                      _isSpreadsheetView
+                          ? 'عرض جدولي لجميع المهام المخصصة لي'
+                          : _getUserRoleDescription(),
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white.withOpacity(0.9),
@@ -318,6 +324,8 @@ class _MyTasksPageState extends State<MyTasksPage>
                   ],
                 ),
               ),
+              _buildViewToggle(),
+              SizedBox(width: 12),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -337,6 +345,57 @@ class _MyTasksPageState extends State<MyTasksPage>
           SizedBox(height: 24),
           _buildTasksOverviewStats(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            icon: Icons.view_agenda,
+            isSelected: !_isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = false),
+          ),
+          SizedBox(width: 4),
+          _buildToggleButton(
+            icon: Icons.table_chart,
+            isSelected: _isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -580,7 +639,269 @@ class _MyTasksPageState extends State<MyTasksPage>
     );
   }
 
-  Widget _buildTasksList() {
+  Widget _buildSpreadsheetView() {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: _getUserRoleColor(),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _buildSpreadsheetHeader(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _filteredTasks.length,
+            itemBuilder: (context, index) {
+              return _buildSpreadsheetRow(_filteredTasks[index], index);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpreadsheetHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(flex: 1, child: _buildHeaderCell('أولوية')),
+            Expanded(flex: 3, child: _buildHeaderCell('اسم المؤلف')),
+            Expanded(flex: 2, child: _buildHeaderCell('المرحلة')),
+            Expanded(flex: 3, child: _buildHeaderCell('الحالة')),
+            Expanded(flex: 2, child: _buildHeaderCell('مدة الانتظار')),
+            Expanded(flex: 2, child: _buildHeaderCell('التاريخ')),
+            Expanded(flex: 1, child: _buildHeaderCell('')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff2d3748),
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildSpreadsheetRow(DocumentModel task, int index) {
+    final statusColor = AppStyles.getStatusColor(task.status);
+    final statusIcon = AppStyles.getStatusIcon(task.status);
+    final stageNumber = AppStyles.getStageNumber(task.status);
+    final isHighPriority = _getTaskPriority(task.status) == 1;
+    final formattedDate = DateFormat('MM/dd\nHH:mm').format(task.timestamp);
+    final waitingDuration = _getWaitingDuration(task.timestamp);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+          left: isHighPriority
+              ? BorderSide(color: Colors.red, width: 3)
+              : BorderSide.none,
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _navigateToTaskDetails(task),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Priority
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: Icon(
+                    isHighPriority ? Icons.priority_high : Icons.remove,
+                    size: 16,
+                    color: isHighPriority ? Colors.red : Colors.grey.shade400,
+                  ),
+                ),
+              ),
+
+              // Author Name
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    if (isHighPriority)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        margin: EdgeInsets.only(left: 8),
+                      ),
+                    Expanded(
+                      child: Text(
+                        task.fullName.isNotEmpty ? task.fullName : 'مستند',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff2d3748),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Stage
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStageColor(stageNumber).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _getStageColor(stageNumber).withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    'المرحلة $stageNumber',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _getStageColor(stageNumber),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              // Status
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 12, color: statusColor),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          AppStyles.getStatusDisplayName(task.status),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Waiting Duration
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getDurationColor(waitingDuration).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    waitingDuration,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _getDurationColor(waitingDuration),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              // Actions
+              Expanded(
+                flex: 1,
+                child: IconButton(
+                  icon: Icon(Icons.play_arrow,
+                      size: 16,
+                      color: isHighPriority ? Colors.red : _getUserRoleColor()),
+                  onPressed: () => _navigateToTaskDetails(task),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getWaitingDuration(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays == 0) {
+      return 'اليوم';
+    } else if (difference.inDays == 1) {
+      return 'يوم واحد';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} أيام';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()} أسابيع';
+    } else {
+      return '${(difference.inDays / 30).floor()} أشهر';
+    }
+  }
+
+  Color _getDurationColor(String duration) {
+    if (duration.contains('اليوم') || duration.contains('واحد')) {
+      return Colors.green;
+    } else if (duration.contains('أيام') && !duration.contains('7')) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
+  Widget _buildCardView() {
     if (_isLoading) {
       return Center(
         child: Column(
@@ -993,8 +1314,7 @@ class _MyTasksPageState extends State<MyTasksPage>
   }
 
   bool _isManagingEditor() {
-    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-        _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF;
+    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR;
   }
 
   void _navigateToTaskDetails(DocumentModel document) {
@@ -1021,8 +1341,7 @@ class _MyTasksPageState extends State<MyTasksPage>
             document.status == AppConstants.LANGUAGE_EDITING_STAGE2) {
           page = Stage2LanguageEditorPage(document: document);
         } else if ((_currentUserPosition ==
-                    AppConstants.POSITION_MANAGING_EDITOR ||
-                _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) &&
+                AppConstants.POSITION_MANAGING_EDITOR) &&
             (document.status == AppConstants.LANGUAGE_EDITOR_COMPLETED ||
                 document.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)) {
           page = Stage2ChefEditorLanguageReviewPage(document: document);

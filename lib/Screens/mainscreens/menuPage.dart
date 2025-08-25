@@ -1,8 +1,11 @@
 // menuPage.dart - Clean version with reviewer-specific view
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../Classes/current_user_providerr.dart';
+import '../../Classes/myUser.dart';
 import '../../myTasks.dart';
 import '../../stage1/Stage1DocumentsPage.dart';
 import '../../stage2/stage2documetspage.dart';
@@ -12,10 +15,8 @@ import '../../Document_Services.dart';
 import '../../App_Constants.dart';
 import '../../stage3/stage3DocumentsPage.dart';
 import '../Document_Handling/all_documents.dart';
-import '../Userspage.dart';
 import '../../models/document_model.dart';
 import '../../models/reviewerModel.dart';
-import 'IncomingFilesScreen.dart';
 import 'SettingsPage.dart';
 
 class MenuPage extends StatefulWidget {
@@ -30,7 +31,6 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
   String email = '';
   String position = '';
   bool isLoading = true;
-  int incomingFilesCount = 0;
   int pendingTasksCount = 0;
   Map<String, dynamic> allStagesStatistics = {};
 
@@ -63,24 +63,48 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // Load user data from shared preferences
+// Replace the existing _loadUserData method with this:
   Future<void> _loadUserData() async {
     final SharedPreferences logindata = await SharedPreferences.getInstance();
+
+    // Get user data from SharedPreferences
+    final userName = logindata.getString('name') ?? 'مستخدم';
+    final userId = logindata.getString('id') ?? '';
+    final userEmail = logindata.getString('email') ?? '';
+    final userPosition = logindata.getString('position') ?? '';
+    final userUsername = logindata.getString('username') ?? '';
+    final userProfilePicture = logindata.getString('profilePicture') ?? '';
+
     setState(() {
-      name = logindata.getString('name') ?? 'مستخدم';
-      id = logindata.getString('id') ?? '';
-      email = logindata.getString('email') ?? '';
-      position = logindata.getString('position') ?? '';
+      name = userName;
+      id = userId;
+      email = userEmail;
+      position = userPosition;
       isLoading = false;
     });
 
-    // If user is a reviewer, load reviewer-specific data
+    // Initialize the CurrentUserProvider with user data
+    if (userId.isNotEmpty) {
+      final currentUser = myUser(
+        name: userName,
+        email: userEmail,
+        username: userUsername,
+        password: '', // Don't store password in provider
+        profilePicture: userProfilePicture,
+        id: userId,
+        position: userPosition,
+      );
+
+      // Set the current user in the provider
+      Provider.of<CurrentUserProvider>(context, listen: false)
+          .setCurrentUser(currentUser);
+    }
+
+    // Continue with the rest of the method...
     if (_isReviewer()) {
       await _loadReviewerTasks();
     } else {
-      // Load statistics and counts for non-reviewer users
       await Future.wait([
-        _loadIncomingFilesCount(),
         _loadPendingTasksCount(),
         _loadAllStagesStatistics(),
       ]);
@@ -157,31 +181,6 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
           ),
         );
       }
-    }
-  }
-
-  // Check if user can view incoming files
-  bool _canViewIncomingFiles() {
-    return PermissionService.canReviewIncomingFiles(position);
-  }
-
-  // Load count of incoming files
-  Future<void> _loadIncomingFilesCount() async {
-    try {
-      final QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('sent_documents')
-          .where('status', whereIn: [
-        AppConstants.INCOMING,
-        AppConstants.SECRETARY_REVIEW
-      ]).get();
-
-      if (mounted) {
-        setState(() {
-          incomingFilesCount = snapshot.docs.length;
-        });
-      }
-    } catch (e) {
-      print('Error loading incoming files count: $e');
     }
   }
 
@@ -325,8 +324,7 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
         context,
         MaterialPageRoute(builder: (context) => MyTasksPage()),
       );
-    } else if (position == AppConstants.POSITION_MANAGING_EDITOR ||
-        position == AppConstants.POSITION_EDITOR_CHIEF) {
+    } else if (position == AppConstants.POSITION_MANAGING_EDITOR) {
       // Navigate to editor tasks (both stage 1 and stage 2)
       Navigator.push(
         context,
@@ -832,25 +830,6 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                   );
                 },
               ),
-              if (_canViewIncomingFiles())
-                RectangularActionCard(
-                  title: "المقالات الواردة",
-                  subtitle: "مقالات جديدة للمراجعة",
-                  icon: Icons.article,
-                  gradient: [Color(0xfff56565), Color(0xffe53e3e)],
-                  onTap: () async {
-                    // Navigate to incoming files
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => IncomingFilesPage(),
-                      ),
-                    ).then((_) {
-                      _loadIncomingFilesCount();
-                    });
-                  },
-                  notificationCount: incomingFilesCount,
-                ),
             ];
 
             // Stage files (main section)
@@ -893,12 +872,12 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
                 icon: Icons.people_outline,
                 gradient: [Color(0xff667eea), Color(0xff764ba2)],
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => UsersPage(),
-                    ),
-                  );
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //     builder: (context) => UsersPage(),
+                  //   ),
+                  // );
                 },
               ),
               RectangularActionCard(

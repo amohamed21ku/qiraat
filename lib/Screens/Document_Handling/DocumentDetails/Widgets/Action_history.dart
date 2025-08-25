@@ -484,8 +484,10 @@ class _ActionCardState extends State<ActionCard> {
       final documentData = _buildDocumentDataMap();
 
       if (kIsWeb) {
-        await _handleWebFileView(documentData);
+        // Always open in new tab for web
+        await _openInNewTab(widget.action.attachedFileUrl!);
       } else {
+        // Handle mobile file viewing
         String fileExtension =
             _getFileExtension(documentData, widget.action.attachedFileUrl!);
 
@@ -504,201 +506,12 @@ class _ActionCardState extends State<ActionCard> {
     }
   }
 
-  Future<void> _handleWebFileView(Map<String, dynamic> documentData) async {
-    try {
-      final String fileUrl = widget.action.attachedFileUrl!;
-      final String fileExtension = _getFileExtension(documentData, fileUrl);
-      final String fileName = _getFileName(documentData, fileUrl);
-
-      if (!supportedFileTypes.containsKey(fileExtension)) {
-        throw Exception(
-            'نوع الملف غير مدعوم: ${_getFileTypeDisplayName(documentData, fileExtension)}');
-      }
-
-      _showWebViewOptionsDialog(fileUrl, fileName, fileExtension, documentData);
-    } catch (e) {
-      throw Exception('فشل في تجهيز الملف للعرض: $e');
-    }
-  }
-
-  void _showWebViewOptionsDialog(String fileUrl, String fileName,
-      String fileExtension, Map<String, dynamic> documentData) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Directionality(
-          textDirection: ui.TextDirection.rtl,
-          child: AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                Icon(Icons.description, color: AppStyles.primaryColor),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'خيارات عرض الملف',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 20),
-                _buildWebViewOption(
-                  icon: Icons.open_in_new,
-                  title: 'فتح في تبويب جديد',
-                  subtitle: 'فتح الملف في تبويب منفصل',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _openInNewTab(fileUrl);
-                  },
-                ),
-                SizedBox(height: 12),
-                _buildWebViewOption(
-                  icon: Icons.download,
-                  title: 'تنزيل الملف',
-                  subtitle: 'حفظ الملف على جهازك',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _downloadFileWeb(fileUrl, fileName, documentData);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('إلغاء'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildWebViewOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppStyles.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: AppStyles.primaryColor, size: 20),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios,
-                size: 16, color: Colors.grey.shade400),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _openInNewTab(String fileUrl) async {
     try {
       html.window.open(fileUrl, '_blank');
       _showSuccessSnackBar('تم فتح الملف في تبويب جديد');
     } catch (e) {
       _showErrorSnackBar('فشل في فتح الملف في تبويب جديد');
-    }
-  }
-
-  Future<void> _downloadFileWeb(String fileUrl, String fileName,
-      Map<String, dynamic> documentData) async {
-    try {
-      setState(() => _isLoading = true);
-
-      try {
-        final html.AnchorElement anchor = html.AnchorElement(href: fileUrl)
-          ..download = fileName
-          ..style.display = 'none';
-
-        html.document.body?.children.add(anchor);
-        anchor.click();
-        html.document.body?.children.remove(anchor);
-
-        _showSuccessSnackBar('تم بدء تنزيل الملف: $fileName');
-        return;
-      } catch (e) {
-        // Continue to method 2
-      }
-
-      final dio = Dio();
-      final response = await dio.get(
-        fileUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      if (response.statusCode == 200) {
-        final bytes = response.data as List<int>;
-        final fileExtension = _getFileExtension(documentData, fileUrl);
-        final mimeType =
-            supportedFileTypes[fileExtension] ?? 'application/octet-stream';
-
-        final blob = html.Blob([bytes], mimeType);
-        final blobUrl = html.Url.createObjectUrlFromBlob(blob);
-
-        final html.AnchorElement anchor = html.AnchorElement(href: blobUrl)
-          ..download = fileName
-          ..style.display = 'none';
-
-        html.document.body?.children.add(anchor);
-        anchor.click();
-        html.document.body?.children.remove(anchor);
-
-        html.Url.revokeObjectUrl(blobUrl);
-
-        _showSuccessSnackBar('تم تنزيل الملف بنجاح: $fileName');
-      } else {
-        throw Exception('فشل في تنزيل الملف: ${response.statusCode}');
-      }
-    } catch (e) {
-      _showErrorSnackBar('فشل في تنزيل الملف: ${e.toString()}');
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 

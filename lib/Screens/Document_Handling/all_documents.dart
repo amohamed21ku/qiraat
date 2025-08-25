@@ -1,14 +1,34 @@
 // pages/AllDocumentsPage.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../../App_Constants.dart';
 import '../../Document_Services.dart';
 import '../../models/document_model.dart';
+import '../../stage1/Stag1HeadEditorDetailsPage.dart';
+import '../../stage1/Stage1EditorDetailsPage.dart';
+import '../../stage1/Stage1SecretaryDetailsPage.dart';
+import '../../stage2/Stage2ChefEditorLanguageReview.dart';
+import '../../stage2/stage2HeadEditor.dart';
+import '../../stage2/stage2LanguageEditorPage.dart';
+import '../../stage3/Stage3ManagingEditor.dart';
+import '../../stage3/stage3FinalReviewerPage.dart';
+import '../../stage3/stage3HeadEditorPage.dart';
+import '../../stage3/stage3LayoutDesign.dart';
+
+// Import all the detail pages
 
 class AllDocumentsPage extends StatefulWidget {
+  final String? userPosition; // Add user position parameter
+  final String? userId; // Add user ID parameter
+
+  const AllDocumentsPage({
+    Key? key,
+    this.userPosition,
+    this.userId,
+  }) : super(key: key);
+
   @override
   _AllDocumentsPageState createState() => _AllDocumentsPageState();
 }
@@ -194,6 +214,112 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
     setState(() {
       _filteredDocuments = filtered;
     });
+  }
+
+  // Smart navigation method to determine which detail page to open
+  void _navigateToDocumentDetails(DocumentModel document) {
+    final stage = AppStyles.getStageNumber(document.status);
+    final userPosition = widget.userPosition ?? '';
+    final userId = widget.userId ?? '';
+
+    Widget? targetPage;
+
+    switch (stage) {
+      case 1:
+        targetPage = _getStage1DetailPage(document, userPosition);
+        break;
+      case 2:
+        targetPage = _getStage2DetailPage(document, userPosition, userId);
+        break;
+      case 3:
+        targetPage = _getStage3DetailPage(document, userPosition);
+        break;
+      default:
+        _showGenericDocumentDetails(document);
+        return;
+    }
+
+    if (targetPage != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => targetPage!),
+      );
+    } else {
+      // Fallback to generic details if no specific page found
+      _showGenericDocumentDetails(document);
+    }
+  }
+
+  Widget? _getStage1DetailPage(DocumentModel document, String userPosition) {
+    switch (userPosition) {
+      case AppConstants.POSITION_SECRETARY:
+        return Stage1SecretaryDetailsPage(document: document);
+      case AppConstants.POSITION_MANAGING_EDITOR:
+        return Stage1EditorDetailsPage(document: document);
+      case AppConstants.POSITION_HEAD_EDITOR:
+        return Stage1HeadEditorDetailsPage(document: document);
+      default:
+        // For other roles, show the most appropriate page based on document status
+        if (document.status == AppConstants.INCOMING ||
+            document.status == AppConstants.SECRETARY_REVIEW) {
+          return Stage1SecretaryDetailsPage(document: document);
+        } else if (document.status == AppConstants.EDITOR_REVIEW ||
+            document.status == AppConstants.SECRETARY_APPROVED ||
+            document.status == AppConstants.SECRETARY_REJECTED ||
+            document.status == AppConstants.SECRETARY_EDIT_REQUESTED) {
+          return Stage1EditorDetailsPage(document: document);
+        } else {
+          return Stage1HeadEditorDetailsPage(document: document);
+        }
+    }
+  }
+
+  Widget? _getStage2DetailPage(
+      DocumentModel document, String userPosition, String userId) {
+    switch (userPosition) {
+      case AppConstants.POSITION_LANGUAGE_EDITOR:
+        return Stage2LanguageEditorPage(document: document);
+      case AppConstants.POSITION_MANAGING_EDITOR:
+        if (document.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT ||
+            document.status == AppConstants.LANGUAGE_EDITOR_COMPLETED) {
+          return Stage2ChefEditorLanguageReviewPage(document: document);
+        } else {
+          return Stage2HeadEditorDetailsPage(document: document);
+        }
+      case AppConstants.POSITION_HEAD_EDITOR:
+        return Stage2HeadEditorDetailsPage(document: document);
+      default:
+        // For reviewers, check if they are assigned to this document
+        if (userPosition.contains('محكم') ||
+            userPosition == AppConstants.POSITION_REVIEWER) {
+          final isAssignedReviewer = document.reviewers.any(
+            (reviewer) => reviewer.userId == userId,
+          );
+          if (isAssignedReviewer) {
+            return Stage2HeadEditorDetailsPage(
+                document: document); // Or create a reviewer-specific page
+          }
+        }
+
+        // Default to head editor page for other roles
+        return Stage2HeadEditorDetailsPage(document: document);
+    }
+  }
+
+  Widget? _getStage3DetailPage(DocumentModel document, String userPosition) {
+    switch (userPosition) {
+      case AppConstants.POSITION_LAYOUT_DESIGNER:
+        return Stage3LayoutDesignerPage(document: document);
+      case AppConstants.POSITION_MANAGING_EDITOR:
+        return Stage3ManagingEditorPage(document: document);
+      case AppConstants.POSITION_HEAD_EDITOR:
+        return Stage3HeadEditorPage(document: document);
+      case AppConstants.POSITION_FINAL_REVIEWER:
+        return Stage3FinalReviewerPage(document: document);
+      default:
+        // Default to head editor page for other roles
+        return Stage3HeadEditorPage(document: document);
+    }
   }
 
   @override
@@ -713,7 +839,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
         ),
       ),
       child: InkWell(
-        onTap: () => _showDocumentDetails(document),
+        onTap: () => _navigateToDocumentDetails(
+            document), // Updated to use smart navigation
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -818,7 +945,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
                 child: IconButton(
                   icon: Icon(Icons.arrow_forward_ios,
                       size: 16, color: AppStyles.primaryColor),
-                  onPressed: () => _showDocumentDetails(document),
+                  onPressed: () => _navigateToDocumentDetails(
+                      document), // Updated to use smart navigation
                   padding: EdgeInsets.zero,
                   constraints: BoxConstraints(),
                 ),
@@ -900,7 +1028,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
         ),
       ),
       child: InkWell(
-        onTap: () => _showDocumentDetails(document),
+        onTap: () => _navigateToDocumentDetails(
+            document), // Updated to use smart navigation
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: EdgeInsets.all(20),
@@ -1027,7 +1156,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _showDocumentDetails(document),
+                      onPressed: () => _navigateToDocumentDetails(
+                          document), // Updated to use smart navigation
                       icon: Icon(Icons.visibility, size: 18),
                       label: Text('عرض التفاصيل'),
                       style: ElevatedButton.styleFrom(
@@ -1157,7 +1287,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
     }
   }
 
-  void _showDocumentDetails(DocumentModel document) {
+  // Keep the original generic details method as fallback
+  void _showGenericDocumentDetails(DocumentModel document) {
     showDialog(
       context: context,
       builder: (context) => Directionality(
@@ -1311,7 +1442,8 @@ class _AllDocumentsPageState extends State<AllDocumentsPage>
               title: Text('عرض التفاصيل'),
               onTap: () {
                 Navigator.pop(context);
-                _showDocumentDetails(document);
+                _navigateToDocumentDetails(
+                    document); // Updated to use smart navigation
               },
             ),
             ListTile(

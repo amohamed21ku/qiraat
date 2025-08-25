@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:qiraat/Screens/reviewerFirstPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../App_Constants.dart';
-import 'mainscreens/HomeScreen.dart';
+import 'mainscreens/menuPage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen>
       // User is signed in, navigate to home screen
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
+        MaterialPageRoute(builder: (context) => MenuPage()),
       );
       return;
     }
@@ -149,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen>
           await getUserDataByUID(userCredential.user!.uid);
 
       if (userData != null) {
+        // Store user info in shared preferences
         await logindata.setBool('login', false);
         await logindata.setString('username', userData['username'] ?? '');
         await logindata.setString('name', userData['fullName'] ?? '');
@@ -158,19 +157,13 @@ class _LoginScreenState extends State<LoginScreen>
             'profilePicture', userData['profileImageUrl'] ?? '');
         await logindata.setString('position', userData['position'] ?? '');
 
-        final position = (userData['position'] ?? '').toString();
+        print("User data stored in SharedPreferences");
 
-        final bool isReviewer = position == AppConstants.POSITION_REVIEWER ||
-            position.contains('محكم');
-
+        // Navigate to home screen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) =>
-                isReviewer ? const ReviewerTasksPage() : HomeScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => MenuPage()),
         );
-        return;
       } else {
         // This shouldn't happen, but handle it just in case
         await _auth.signOut();

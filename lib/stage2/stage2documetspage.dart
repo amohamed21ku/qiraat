@@ -1,9 +1,10 @@
-// pages/Stage2/Stage2DocumentsPage.dart - Updated with proper Stage1 to Stage2 flow
+// pages/Stage2/Stage2DocumentsPage.dart - Updated with dual view and table default
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qiraat/stage2/stage2HeadEditor.dart';
 import 'package:qiraat/stage2/stage2LanguageEditorPage.dart';
 import 'package:qiraat/stage2/stage2Reviewer.dart';
+import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../../Classes/current_user_providerr.dart';
@@ -27,6 +28,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
   String _selectedFilter = 'all';
   String _searchQuery = '';
   bool _isLoading = true;
+  bool _isSpreadsheetView = true; // Default to table view
 
   String? _currentUserId;
   String? _currentUserName;
@@ -207,8 +209,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             a.status != AppConstants.LANGUAGE_EDITING_STAGE2) return 1;
       }
 
-      if (_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-          _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+      if (_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR) {
         if (a.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
             b.status != AppConstants.CHEF_REVIEW_LANGUAGE_EDIT) return -1;
         if (b.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
@@ -248,7 +249,11 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
             children: [
               _buildHeader(),
               _buildFiltersSection(),
-              Expanded(child: _buildDocumentsList()),
+              Expanded(
+                child: _isSpreadsheetView
+                    ? _buildSpreadsheetView()
+                    : _buildCardView(),
+              ),
             ],
           ),
         ),
@@ -292,9 +297,11 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _isReviewer()
-                      ? Icons.rate_review
-                      : Icons.admin_panel_settings,
+                  _isSpreadsheetView
+                      ? Icons.table_chart
+                      : (_isReviewer()
+                          ? Icons.rate_review
+                          : Icons.admin_panel_settings),
                   color: Colors.white,
                   size: 28,
                 ),
@@ -313,9 +320,11 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                       ),
                     ),
                     Text(
-                      _isReviewer()
-                          ? 'التحكيم العلمي والمراجعة المتخصصة'
-                          : 'إدارة التحكيم العلمي والمراجعة',
+                      _isSpreadsheetView
+                          ? 'عرض جدولي للتحكيم العلمي والمراجعة'
+                          : (_isReviewer()
+                              ? 'التحكيم العلمي والمراجعة المتخصصة'
+                              : 'إدارة التحكيم العلمي والمراجعة'),
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white.withOpacity(0.9),
@@ -324,6 +333,8 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
                   ],
                 ),
               ),
+              _buildViewToggle(),
+              SizedBox(width: 12),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -343,6 +354,57 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
           SizedBox(height: 24),
           _buildStage2OverviewStats(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleButton(
+            icon: Icons.view_agenda,
+            isSelected: !_isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = false),
+          ),
+          SizedBox(width: 4),
+          _buildToggleButton(
+            icon: Icons.table_chart,
+            isSelected: _isSpreadsheetView,
+            onTap: () => setState(() => _isSpreadsheetView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? Colors.white.withOpacity(0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -446,8 +508,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
               ),
             ),
           ] else if (_currentUserPosition ==
-                  AppConstants.POSITION_MANAGING_EDITOR ||
-              _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) ...[
+              AppConstants.POSITION_MANAGING_EDITOR) ...[
             Expanded(
               child: _buildStatItem(
                 'مراجعة التدقيق',
@@ -747,7 +808,339 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     );
   }
 
-  Widget _buildDocumentsList() {
+  Widget _buildSpreadsheetView() {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: _isReviewer() ? Colors.teal.shade600 : Colors.indigo.shade600,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _buildSpreadsheetHeader(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _filteredDocuments.length,
+            itemBuilder: (context, index) {
+              return _buildSpreadsheetRow(_filteredDocuments[index], index);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpreadsheetHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 2),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(flex: 2, child: _buildHeaderCell('اسم المؤلف')),
+            Expanded(flex: 3, child: _buildHeaderCell('البريد الإلكتروني')),
+            Expanded(flex: 3, child: _buildHeaderCell('الحالة')),
+            Expanded(flex: 2, child: _buildHeaderCell('تقدم المحكمين')),
+            Expanded(flex: 2, child: _buildHeaderCell('مدة التحكيم')),
+            Expanded(flex: 2, child: _buildHeaderCell('التاريخ')),
+            Expanded(flex: 1, child: _buildHeaderCell('')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: Color(0xff2d3748),
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildSpreadsheetRow(DocumentModel document, int index) {
+    final statusColor = AppStyles.getStage2StatusColor(document.status);
+    final statusIcon = AppStyles.getStage2StatusIcon(document.status);
+    final formattedDate = DateFormat('MM/dd\nHH:mm').format(document.timestamp);
+    final reviewProgress = _getReviewProgress(document);
+    final reviewDuration = _getReviewDuration(document.timestamp);
+
+    // Check if current user is assigned as reviewer
+    final isAssignedReviewer = _isReviewer() &&
+        document.reviewers.isNotEmpty &&
+        document.reviewers.any((reviewer) => reviewer.userId == _currentUserId);
+
+    // Special highlighting for Stage1_approved documents or user's tasks
+    bool isReadyForAssignment = document.status == AppConstants.STAGE1_APPROVED;
+    bool isUserTask = isAssignedReviewer;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: index % 2 == 0 ? Colors.white : Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+          left: isReadyForAssignment || isUserTask
+              ? BorderSide(color: Colors.green, width: 3)
+              : BorderSide.none,
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _navigateToDetailsPage(document),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Author Name
+              Expanded(
+                flex: 2,
+                child: Row(
+                  children: [
+                    if (isReadyForAssignment)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        margin: EdgeInsets.only(left: 8),
+                      )
+                    else if (isUserTask)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                        ),
+                        margin: EdgeInsets.only(left: 8),
+                      ),
+                    Expanded(
+                      child: Text(
+                        document.fullName.isNotEmpty
+                            ? document.fullName
+                            : 'غير محدد',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff2d3748),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Email
+              Expanded(
+                flex: 3,
+                child: Text(
+                  document.email.isNotEmpty ? document.email : '--',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Status
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 12, color: statusColor),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          AppStyles.getStatusDisplayName(document.status),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Review Progress
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        reviewProgress,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _getProgressColor(reviewProgress),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Container(
+                        width: 20,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(3),
+                          color: Colors.grey.shade300,
+                        ),
+                        child: FractionallySizedBox(
+                          widthFactor: _getProgressPercentage(reviewProgress),
+                          alignment: Alignment.centerRight,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(3),
+                              color: _getProgressColor(reviewProgress),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Review Duration
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getDurationColor(reviewDuration).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    reviewDuration,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _getDurationColor(reviewDuration),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+
+              // Date
+              Expanded(
+                flex: 2,
+                child: Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              // Actions
+              Expanded(
+                flex: 1,
+                child: IconButton(
+                  icon: Icon(Icons.arrow_forward_ios,
+                      size: 16,
+                      color: isReadyForAssignment || isUserTask
+                          ? Colors.green
+                          : Colors.indigo.shade600),
+                  onPressed: () => _navigateToDetailsPage(document),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getReviewProgress(DocumentModel document) {
+    if (document.reviewers.isEmpty) {
+      return 'لم يعين';
+    }
+
+    final completedReviews = document.reviewers
+        .where((reviewer) => reviewer.reviewStatus == 'Completed')
+        .length;
+    final totalReviewers = document.reviewers.length;
+
+    return '$completedReviews/$totalReviewers';
+  }
+
+  double _getProgressPercentage(String progress) {
+    if (progress == 'لم يعين') return 0.0;
+
+    final parts = progress.split('/');
+    if (parts.length != 2) return 0.0;
+
+    final completed = int.tryParse(parts[0]) ?? 0;
+    final total = int.tryParse(parts[1]) ?? 1;
+
+    return completed / total;
+  }
+
+  Color _getProgressColor(String progress) {
+    final percentage = _getProgressPercentage(progress);
+    if (percentage == 0.0) return Colors.grey;
+    if (percentage < 0.5) return Colors.orange;
+    if (percentage < 1.0) return Colors.blue;
+    return Colors.green;
+  }
+
+  String _getReviewDuration(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays == 0) {
+      return 'اليوم';
+    } else if (difference.inDays == 1) {
+      return 'يوم واحد';
+    } else {
+      return '${difference.inDays} أيام';
+    }
+  }
+
+  Color _getDurationColor(String duration) {
+    if (duration.contains('اليوم')) {
+      return Colors.green;
+    } else if (duration.contains('واحد') ||
+        duration.contains('2') ||
+        duration.contains('3')) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
+  Widget _buildCardView() {
     if (_isLoading) {
       return Center(
         child: Column(
@@ -1300,7 +1693,6 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
     Widget page;
     print(_currentUserPosition);
     print(AppConstants.POSITION_MANAGING_EDITOR);
-    print(AppConstants.POSITION_EDITOR_CHIEF);
     print(document.status);
     print(AppConstants.LANGUAGE_EDITOR_COMPLETED);
     print(AppConstants.CHEF_REVIEW_LANGUAGE_EDIT);
@@ -1310,8 +1702,7 @@ class _Stage2DocumentsPageState extends State<Stage2DocumentsPage>
       page = Stage2LanguageEditorPage(document: document);
     }
     // Check if current user is chef/managing editor for language review
-    else if ((_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF) &&
+    else if ((_currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR) &&
         (document.status == AppConstants.LANGUAGE_EDITOR_COMPLETED ||
             document.status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)) {
       page = Stage2ChefEditorLanguageReviewPage(document: document);

@@ -224,8 +224,7 @@ class AppConstants {
   // User Positions
   static const String POSITION_SECRETARY = 'سكرتير تحرير';
   static const String POSITION_MANAGING_EDITOR = 'مدير التحرير';
-  static const String POSITION_EDITOR_CHIEF =
-      'مدير التحرير'; // Same as MANAGING_EDITOR but for clarity
+
   static const String POSITION_HEAD_EDITOR = 'رئيس التحرير';
   static const String POSITION_REVIEWER = 'محكم';
   static const String POSITION_LANGUAGE_EDITOR = 'المدقق اللغوي';
@@ -544,8 +543,7 @@ class AppConstants {
         break;
 
       case EDITOR_REVIEW:
-        if (userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+        if (userPosition == POSITION_MANAGING_EDITOR) {
           actions.addAll([
             {
               'action': ACTION_APPROVE,
@@ -624,8 +622,7 @@ class AppConstants {
       // Stage 2 actions
       case STAGE1_APPROVED:
         if (userPosition == POSITION_HEAD_EDITOR ||
-            userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+            userPosition == POSITION_MANAGING_EDITOR) {
           actions.add({
             'action': ACTION_ASSIGN_REVIEWERS,
             'title': 'تعيين المحكمين',
@@ -640,8 +637,7 @@ class AppConstants {
 
       case REVIEWERS_ASSIGNED:
         if (userPosition == POSITION_HEAD_EDITOR ||
-            userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+            userPosition == POSITION_MANAGING_EDITOR) {
           actions.add({
             'action': ACTION_START_REVIEW,
             'title': 'بدء التحكيم',
@@ -672,8 +668,7 @@ class AppConstants {
       case PEER_REVIEW_COMPLETED:
       case HEAD_REVIEW_STAGE2:
         if (userPosition == POSITION_HEAD_EDITOR ||
-            userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+            userPosition == POSITION_MANAGING_EDITOR) {
           actions.addAll([
             {
               'action': ACTION_SEND_TO_LANGUAGE_EDITOR,
@@ -739,8 +734,7 @@ class AppConstants {
         break;
 
       case CHEF_REVIEW_LANGUAGE_EDIT:
-        if (userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+        if (userPosition == POSITION_MANAGING_EDITOR) {
           actions.addAll([
             {
               'action': ACTION_CHEF_APPROVE_LANGUAGE_EDIT,
@@ -768,8 +762,7 @@ class AppConstants {
       // NEW STAGE 3 ACTIONS
       case STAGE2_APPROVED:
         if (userPosition == POSITION_HEAD_EDITOR ||
-            userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+            userPosition == POSITION_MANAGING_EDITOR) {
           actions.add({
             'action': ACTION_SEND_TO_LAYOUT_DESIGNER,
             'title': 'إرسال للإخراج الفني',
@@ -798,8 +791,7 @@ class AppConstants {
 
       case LAYOUT_DESIGN_COMPLETED:
       case MANAGING_EDITOR_REVIEW_LAYOUT:
-        if (userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+        if (userPosition == POSITION_MANAGING_EDITOR) {
           actions.addAll([
             {
               'action': ACTION_APPROVE_LAYOUT,
@@ -878,8 +870,7 @@ class AppConstants {
         break;
 
       case MANAGING_EDITOR_FINAL_CHECK:
-        if (userPosition == POSITION_MANAGING_EDITOR ||
-            userPosition == POSITION_EDITOR_CHIEF) {
+        if (userPosition == POSITION_MANAGING_EDITOR) {
           actions.addAll([
             {
               'action': ACTION_APPROVE_LAYOUT,
@@ -947,7 +938,6 @@ class AppConstants {
   static const List<String> userRoles = [
     POSITION_SECRETARY,
     POSITION_MANAGING_EDITOR,
-    POSITION_EDITOR_CHIEF,
     POSITION_HEAD_EDITOR,
     POSITION_REVIEWER,
     REVIEWER_POLITICAL,

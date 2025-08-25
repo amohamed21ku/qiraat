@@ -108,8 +108,7 @@ class _Stage2HeadEditorDetailsPageState
   }
 
   bool _isEditorChief() {
-    return _currentUserPosition == AppConstants.POSITION_EDITOR_CHIEF ||
-        _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
+    return _currentUserPosition == AppConstants.POSITION_MANAGING_EDITOR ||
         _currentUserPosition == 'مدير التحرير';
   }
 

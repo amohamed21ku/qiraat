@@ -2253,8 +2253,7 @@ class DocumentService {
     switch (document.status) {
       case AppConstants.STAGE2_APPROVED:
         return userPosition == AppConstants.POSITION_HEAD_EDITOR ||
-            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR;
 
       case AppConstants.LAYOUT_DESIGN_STAGE3:
       case AppConstants.LAYOUT_REVISION_REQUESTED:
@@ -2264,8 +2263,7 @@ class DocumentService {
       case AppConstants.LAYOUT_DESIGN_COMPLETED:
       case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
       case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
 
       case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
       case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
@@ -2674,8 +2672,7 @@ class DocumentService {
         // Also show completed reviews for reference
         documents.addAll(
             await getDocumentsByStatus(AppConstants.FINAL_REVIEW_COMPLETED));
-      } else if (userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-          userPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+      } else if (userPosition == AppConstants.POSITION_MANAGING_EDITOR) {
         // Chef Editor sees language editing reviews, editor review tasks, AND Stage 3 tasks
         documents.addAll(
             await getDocumentsByStatus(AppConstants.LANGUAGE_EDITOR_COMPLETED));
@@ -2844,8 +2841,7 @@ class DocumentService {
         return 1; // Highest priority
     }
 
-    if (userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-        userPosition == AppConstants.POSITION_EDITOR_CHIEF) {
+    if (userPosition == AppConstants.POSITION_MANAGING_EDITOR) {
       if (status == AppConstants.LANGUAGE_EDITOR_COMPLETED)
         return 1; // Highest priority (needs chef review)
       if (status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT)
@@ -2910,25 +2906,20 @@ class DocumentService {
         }
         return userPosition == AppConstants.POSITION_LANGUAGE_EDITOR ||
             userPosition == AppConstants.POSITION_HEAD_EDITOR ||
-            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR;
 
       case AppConstants.LANGUAGE_EDITOR_COMPLETED:
         return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF ||
             userPosition == AppConstants.POSITION_HEAD_EDITOR;
 
       case AppConstants.CHEF_REVIEW_LANGUAGE_EDIT:
         return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF ||
             userPosition == AppConstants.POSITION_HEAD_EDITOR;
 
       // NEW: Stage 3 action permissions
       case AppConstants.STAGE2_APPROVED:
         return userPosition == AppConstants.POSITION_HEAD_EDITOR ||
-            userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
-
+            userPosition == AppConstants.POSITION_MANAGING_EDITOR;
       case AppConstants.LAYOUT_DESIGN_STAGE3:
       case AppConstants.LAYOUT_REVISION_REQUESTED:
       case AppConstants.FINAL_MODIFICATIONS:
@@ -2937,8 +2928,7 @@ class DocumentService {
       case AppConstants.LAYOUT_DESIGN_COMPLETED:
       case AppConstants.MANAGING_EDITOR_REVIEW_LAYOUT:
       case AppConstants.MANAGING_EDITOR_FINAL_CHECK:
-        return userPosition == AppConstants.POSITION_MANAGING_EDITOR ||
-            userPosition == AppConstants.POSITION_EDITOR_CHIEF;
+        return userPosition == AppConstants.POSITION_MANAGING_EDITOR;
 
       case AppConstants.HEAD_EDITOR_FIRST_REVIEW:
       case AppConstants.HEAD_EDITOR_FINAL_APPROVAL:
@@ -3214,8 +3204,7 @@ class PermissionService {
   }
 
   static bool canReviewLanguageEditing(String? position) {
-    return position == AppConstants.POSITION_MANAGING_EDITOR ||
-        position == AppConstants.POSITION_EDITOR_CHIEF;
+    return position == AppConstants.POSITION_MANAGING_EDITOR;
   }
 
   static bool canReviewIncomingFiles(String? position) {
@@ -3264,8 +3253,7 @@ class PermissionService {
     if (status == AppConstants.CHEF_REVIEW_LANGUAGE_EDIT &&
         (action == AppConstants.ACTION_CHEF_APPROVE_LANGUAGE_EDIT ||
             action == AppConstants.ACTION_CHEF_REJECT_LANGUAGE_EDIT)) {
-      return position == AppConstants.POSITION_MANAGING_EDITOR ||
-          position == AppConstants.POSITION_EDITOR_CHIEF;
+      return position == AppConstants.POSITION_MANAGING_EDITOR;
     }
     final availableActions =
         AppConstants.getAvailableActions(status, position ?? '');
